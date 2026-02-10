@@ -1,0 +1,6 @@
+*.log
+.claude
+.obsidian
+.vscode
+Clippings
+scripts
