@@ -40,23 +40,20 @@ cd /var/lib/zerotier-one
 sudo zerotier-idtool initmoon identity.public > moon.json
 ```
 
-编辑 `moon.json`，在 `scores` 数组中添加服务器IP：
+编辑 `moon.json`，添加 `stableEndpoints`：
 
 ```json
 {
   "roots": [
     {
       "identity": "xxxxx:0:xxxxx...",
-      "depth": 32,
-      "scores": [
-        {
-          "address": "你的公网IP/9993",
-          "weight": 128
-        }
-      ]
+      "stableEndpoints": ["你的公网IP/9993"]
     }
   ]
 }
+```
+
+> **注**：`stableEndpoints` 是 ZeroTier 1.6.0+ 推荐的配置方式，比传统的 `scores` 数组更简洁。
 ```
 
 ### 4. 启动 Moon
@@ -156,20 +153,14 @@ cd /etc/zerotier
 zerotier-idtool initmoon identity.public > moon.json
 ```
 
-编辑 `moon.json`，在 `scores` 添加路由器公网IP（支持动态域名）：
+编辑 `moon.json`，添加 `stableEndpoints`（支持动态域名）：
 
 ```json
 {
   "roots": [
     {
       "identity": "xxxxx:0:xxxxx...",
-      "depth": 32,
-      "scores": [
-        {
-          "address": "your.domain.com/9993",  # 或直接用公网IP
-          "weight": 128
-        }
-      ]
+      "stableEndpoints": ["your.domain.com/9993"]  # 或直接用公网IP/9993
     }
   ]
 }
