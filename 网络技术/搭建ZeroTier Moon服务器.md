@@ -261,7 +261,7 @@ zerotier-cli orbit 000000a62f602019 000000a62f602019
 
 ```
 
-zerotier-cli orbit a62f602019 a62f602019
+zerotier-cli orbit 7209b3867d 7209b3867d
 
 ```
 
