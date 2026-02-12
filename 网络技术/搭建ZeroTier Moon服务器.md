@@ -204,6 +204,15 @@ zerotier-cli orbit MOON_ID MOON_ID
 # 验证
 zerotier-cli listmoons
 ```
+ 
+ 
+> 不同客户端版本 moon-id 不一致，需要检查本机 zerotier 版本（zerotier-cli -v 命令可查看版本），如：
+> - 在 zerotier 1.10.6 版本中，moon-id 是 16 位，前面有多余 0
+> - 在 zerotier 1.12.2 版本后，moon-id 是 10 位字符串
+> 
+> 总的来说，在新版中 moon-id 是 10 位字符串，需要注意删除前面多余的 0
+
+
 
 **方式二**：将服务器生成的 `.moon` 文件复制到客户端：
 
@@ -222,6 +231,45 @@ zerotier-cli orbit MOON_ID MOON_ID
 zerotier-cli listmoons
 ```
 
+> 
+> 不同客户端版本 moon-id 不一致，需要检查本机 zerotier 版本（zerotier-cli -v 命令可查看版本），如：
+> 
+> - 在 zerotier 1.10.6 版本中，moon-id 是 16 位，前面有多余 0
+> - 在 zerotier 1.12.2 版本后，moon-id 是 10 位字符串
+> 
+> 总的来说，在新版中 moon-id 是 10 位字符串，需要注意删除前面多余的 0
+> 
+ 
+
+```
+
+zerotier-cli orbit <moon-id> <moon-id>
+
+```
+
+注意版本差异：
+
+- 1.10.6 版本：使用 16 位 moon-id（含前导零）
+
+```
+
+zerotier-cli orbit 000000a62f602019 000000a62f602019
+
+```
+
+- 1.12.2+ 版本：使用 10 位 moon-id（去除前导零）
+
+```
+
+zerotier-cli orbit a62f602019 a62f602019
+
+```
+
+orbit 命令会返回 200 状态码表示添加成功。如果 orbit 一直返回 404 状态需要检查上文的版本，多重试几次 orbit
+
+#### 3.2 检查所添加的 moon 状态
+
+可以通过 listmoons 和 listpeers 检查 moon 状态
 ---
 
 ## 防火墙配置
