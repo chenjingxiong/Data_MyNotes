@@ -10,9 +10,10 @@
 2. [PowerShell 配置](#powershell-配置)
 3. [OpenClaw 安装](#openclaw-安装)
 4. [Telegram 配对配置](#telegram-配对配置)
-5. [Chrome 浏览器插件安装](#chrome-浏览器插件安装)
-6. [OpenClaw 服务管理](#openclaw-服务管理)
-7. [常见问题与故障排查](#常见问题与故障排查)
+5. [飞书配置](#飞书配置)
+6. [Chrome 浏览器插件安装](#chrome-浏览器插件安装)
+7. [OpenClaw 服务管理](#openclaw-服务管理)
+8. [常见问题与故障排查](#常见问题与故障排查)
 
 ---
 
@@ -172,6 +173,170 @@ openclaw pairing approve telegram ABC123DEF456
 ```powershell
 openclaw pairing status
 ```
+
+---
+
+## 飞书配置
+
+OpenClaw 支持与飞书（Lark）集成，实现消息推送和自动化通知功能。
+
+### 1. 创建飞书应用
+
+1. 访问 [飞书开放平台](https://open.feishu.cn/)
+2. 登录你的飞书账号
+3. 进入 **管理后台** → **应用管理** → **创建应用**
+4. 选择 **自建应用**，填写应用信息：
+   - **应用名称**: OpenClaw Bot（或自定义名称）
+   - **应用描述**: OpenClaw 自动化助手
+5. 创建后记录 **App ID** 和 **App Secret**
+
+### 2. 配置应用权限
+
+在飞书开放平台的应用配置页面，添加以下权限：
+
+| 权限名称 | 权限值 | 说明 |
+|---------|--------|------|
+| 获取与发送消息 | `im:message` | 发送消息到群组或私聊 |
+| 获取群组信息 | `im:chat` | 读取群组基本信息 |
+| 获取用户信息 | `contact:user.base:readonly` | 获取用户基本信息 |
+| 发送机器人消息 | `im:message:send_as_bot` | 以机器人身份发送消息 |
+
+### 3. 获取飞书凭证
+
+在飞书开放平台获取必要的凭证信息：
+
+```powershell
+# 这些信息将在后续配置中使用
+App ID: cli_xxxxxxxxxxxxx
+App Secret: xxxxxxxxxxxxxxxxxxxx
+Encrypt Key: xxxxxxxxxxxxxxxxxxxx  # 可选，用于消息加密
+Verification Token: xxxxxxxxxxxxxx  # 可选，用于事件验证
+```
+
+### 4. 配置 OpenClaw 飞书集成
+
+在 PowerShell 中执行飞书配置命令：
+
+```powershell
+# 设置飞书应用凭证
+openclaw integrations add feishu --app-id "cli_xxxxxxxxxxxxx" --app-secret "xxxxxxxxxxxxxxxxxx"
+```
+
+**完整配置示例**：
+
+```powershell
+openclaw integrations add feishu `
+  --app-id "cli_1234567890abcdef" `
+  --app-secret "abcdefghijklmnopqrstuvwxyz123456" `
+  --encrypt-key "your-encrypt-key" `
+  --verify-token "your-verify-token"
+```
+
+### 5. 获取飞书群组 ID
+
+要将消息发送到特定群组，需要获取群组的 Open Chat ID：
+
+1. 打开飞书客户端
+2. 进入目标群组
+3. 点击右上角 **...** → **群设置**
+4. 查看并复制 **Open Chat ID**（格式类似：`oc_xxxxxxxxxxxxx`）
+
+### 6. 测试飞书连接
+
+配置完成后，测试连接是否成功：
+
+```powershell
+# 测试飞书连接
+openclaw integrations test feishu
+
+# 发送测试消息到指定群组
+openclaw integrations feishu send --chat-id "oc_xxxxxxxxxxxxx" --message "Hello from OpenClaw!"
+```
+
+### 7. 飞书 Webhook 配置（可选）
+
+如需接收飞书事件回调，配置 Webhook：
+
+```powershell
+# 设置飞书事件接收地址
+openclaw integrations feishu webhook --enable `
+  --url "https://your-domain.com/webhook/feishu" `
+  --events "im.message.receive_v1"
+```
+
+### 8. 查看飞书配置状态
+
+```powershell
+# 查看所有集成状态
+openclaw integrations list
+
+# 查看飞书配置详情
+openclaw integrations info feishu
+```
+
+输出示例：
+
+```
+OpenClaw Integration Status
+  Platform: Feishu
+  Status: Connected
+  App ID: cli_xxxxxxxxxxxxx
+  Webhook: Enabled (https://your-domain.com/webhook/feishu)
+  Last Event: 2026-02-12 10:30:15
+```
+
+### 9. 飞书配置文件位置
+
+飞书配置存储在：
+
+```
+C:\Users\<用户名>\.openclaw\config\integrations\feishu.yaml
+```
+
+配置文件示例：
+
+```yaml
+feishu:
+  enabled: true
+  credentials:
+    app_id: "cli_xxxxxxxxxxxxx"
+    app_secret: "xxxxxxxxxxxxxxxxxx"
+    encrypt_key: "your-encrypt-key"
+    verify_token: "your-verify-token"
+  webhook:
+    enabled: true
+    url: "https://your-domain.com/webhook/feishu"
+    events:
+      - "im.message.receive_v1"
+      - "im.chat.membership_v1"
+  default_chat_id: "oc_xxxxxxxxxxxxx"
+```
+
+### 常用命令速查
+
+[](https://github.com/AlexAnys/openclaw-feishu#%E5%B8%B8%E7%94%A8%E5%91%BD%E4%BB%A4%E9%80%9F%E6%9F%A5)
+
+| 命令                                       | 说明        |
+| ---------------------------------------- | --------- |
+| `openclaw gateway status`                | 查看网关状态    |
+| `openclaw gateway restart`               | 重启网关      |
+| `openclaw gateway install`               | 安装为开机自启服务 |
+| `openclaw logs --follow`                 | 实时查看日志    |
+| `openclaw pairing list feishu`           | 查看待授权配对   |
+| `openclaw pairing approve feishu <CODE>` | 批准配对      |
+| `openclaw plugins list`                  | 查看已安装插件   |
+
+
+### 10. 常用飞书命令
+
+| 命令 | 说明 |
+|-----|------|
+| `openclaw integrations add feishu` | 添加飞书集成 |
+| `openclaw integrations test feishu` | 测试飞书连接 |
+| `openclaw integrations feishu send` | 发送飞书消息 |
+| `openclaw integrations feishu webhook` | 配置 Webhook |
+| `openclaw integrations remove feishu` | 移除飞书集成 |
+| `openclaw integrations info feishu` | 查看配置详情 |
 
 ---
 
@@ -384,6 +549,134 @@ $env:HTTPS_PROXY="http://your-proxy:port"
 iwr -useb https://openclaw.ai/install.ps1 | iex
 ```
 
+### Q7: 飞书 App ID 或 App Secret 无效
+
+**错误信息**：
+
+```
+Feishu authentication failed: Invalid app credentials
+```
+
+**解决方案**：
+
+1. 登录 [飞书开放平台](https://open.feishu.cn/)
+2. 进入 **应用管理** → 选择你的应用
+3. 重新复制 **App ID** 和 **App Secret**
+4. 检查应用是否已发布：
+   - 应用状态需要为 **已上线** 或 **开发中**
+   - 检查应用是否被企业管理员禁用
+5. 重新配置：
+
+```powershell
+# 移除旧配置
+openclaw integrations remove feishu
+
+# 重新添加
+openclaw integrations add feishu --app-id "新ID" --app-secret "新密钥"
+```
+
+### Q8: 飞书消息发送失败
+
+**错误信息**：
+
+```
+Failed to send message: Chat not found or permission denied
+```
+
+**解决方案**：
+
+1. 确认 Chat ID 正确：
+   - 群组 ID 格式应为 `oc_xxxxxxxxxxxxx`
+   - 私聊 ID 格式应为 `ou_xxxxxxxxxxxxx`
+2. 检查机器人是否在群组中：
+   - 将应用添加到目标群组
+   - 确保机器人有发送消息权限
+3. 验证应用权限：
+   - 进入飞书开放平台
+   - 检查 **权限管理** 是否包含 `im:message`
+   - 确保权限已激活并审核通过
+4. 检查网络和代理设置：
+
+```powershell
+# 测试飞书 API 连通性
+openclaw integrations test feishu
+
+# 如需代理
+$env:HTTP_PROXY="http://your-proxy:port"
+$env:HTTPS_PROXY="http://your-proxy:port"
+```
+
+### Q9: 飞书 Webhook 事件接收失败
+
+**错误信息**：
+
+```
+Webhook verification failed: Invalid token or signature
+```
+
+**解决方案**：
+
+1. 确认 Verification Token 正确：
+   - 在飞书开放平台 **事件订阅** 页面查看
+   - 确保与 OpenClaw 配置中的 token 一致
+2. 检查 Encrypt Key 配置：
+   - 如启用消息加密，需配置正确的加密密钥
+   - 可在飞书开放平台 **事件订阅** 页面获取
+3. 验证 Webhook URL 可访问性：
+
+```powershell
+# 测试 Webhook 端点
+curl https://your-domain.com/webhook/feishu
+
+# 检查 OpenClaw 日志
+openclaw logs --follow
+```
+
+4. 重新配置 Webhook：
+
+```powershell
+openclaw integrations feishu webhook --enable `
+  --url "https://your-domain.com/webhook/feishu" `
+  --token "your-verification-token" `
+  --encrypt-key "your-encrypt-key"
+```
+
+### Q10: 飞书集成未生效
+
+**错误信息**：
+
+```
+Integration status: Inactive or Not Configured
+```
+
+**解决方案**：
+
+1. 查看集成配置状态：
+
+```powershell
+openclaw integrations info feishu
+```
+
+2. 确认集成已启用：
+
+```powershell
+# 如果显示 disabled，启用它
+openclaw integrations enable feishu
+```
+
+3. 检查配置文件是否存在：
+
+```powershell
+# 查看配置文件
+notepad C:\Users\<用户名>\.openclaw\config\integrations\feishu.yaml
+```
+
+4. 重启 OpenClaw 服务使配置生效：
+
+```powershell
+openclaw gateway restart
+```
+
 ---
 
 ## 参考资源
@@ -394,12 +687,15 @@ iwr -useb https://openclaw.ai/install.ps1 | iex
 - [OpenClaw GitHub](https://github.com/openclaw/openclaw) - 源代码仓库
 - [OpenClaw 文档](https://docs.openclaw.ai/) - 官方文档
 - [Telegram 官网](https://telegram.org/) - Telegram 下载
+- [飞书开放平台](https://open.feishu.cn/) - 飞书开发者平台
 
 ### 教程文章
 
 - [OpenClaw Windows 快速部署指南](https://openclaw.ai/docs/windows)
 - [Telegram Bot 配对教程](https://core.telegram.org/bots)
 - [Chrome 扩展开发指南](https://developer.chrome.com/docs/extensions/)
+- [飞书开放平台文档](https://open.feishu.cn/document/) - 飞书 API 文档
+- [飞书事件订阅指南](https://open.feishu.cn/document/ukTMukTMukTM/uUTNz4SN1MjL1UzM) - 飞书 Webhook 配置
 
 ### 相关工具
 
@@ -417,10 +713,11 @@ iwr -useb https://openclaw.ai/install.ps1 | iex
 - ✓ 配置 PowerShell 执行策略
 - ✓ 安装 OpenClaw
 - ✓ 完成 Telegram 配对
+- ✓ 配置飞书集成
 - ✓ 安装 Chrome 浏览器扩展
 - ✓ 掌握服务管理命令
 
-现在你可以通过 Telegram 或浏览器扩展使用 OpenClaw 的强大功能了！
+现在你可以通过 Telegram、飞书或浏览器扩展使用 OpenClaw 的强大功能了！
 
 如有问题，请参考上方故障排查部分，或查阅官方资源获取更多帮助。
 

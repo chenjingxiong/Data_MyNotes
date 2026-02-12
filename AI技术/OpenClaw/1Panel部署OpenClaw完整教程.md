@@ -482,6 +482,10 @@ ports:
 2. 在群设置中确保机器人权限已开启
 3. 使用 `/help` 命令测试机器人是否在群内工作
 
+
+
+
+clawdbot config set gateway.controlUi.allowInsecureAuth true
 ---
 
 ## 参考资源
