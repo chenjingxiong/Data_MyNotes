@@ -196,6 +196,340 @@ claude --version
 
 ---
 
+## 🇨🇳 中国区特别说明
+
+### 跳过验证快速配置
+
+如果你在中国大陆，直接使用 Claude Code 官方账号需要手机验证和翻墙。以下是 **跳过验证、直接使用** 的方法：
+
+#### 方法一：环境变量跳过（最简单）
+
+直接设置环境变量，无需登录验证：
+
+**Windows PowerShell (临时):**
+```powershell
+$env:ANTHROPIC_API_KEY="你的智谱API密钥"
+$env:ANTHROPIC_BASE_URL="https://open.bigmodel.cn/api/paas/v4"
+claude --api-key $env:ANTHROPIC_API_KEY --api-url $env:ANTHROPIC_BASE_URL
+```
+
+**Windows PowerShell (永久 - 添加到配置文件):**
+```powershell
+# 编辑 PowerShell 配置文件
+notepad $PROFILE
+
+# 添加以下内容（如果文件不存在，先运行 New-Item -Path $PROFILE -ItemType File）
+$env:ANTHROPIC_API_KEY="你的智谱API密钥"
+$env:ANTHROPIC_BASE_URL="https://open.bigmodel.cn/api/paas/v4"
+
+# 保存后重新加载
+. $PROFILE
+```
+
+**macOS/Linux:**
+```bash
+# 添加到 ~/.bashrc 或 ~/.zshrc
+echo 'export ANTHROPIC_API_KEY="你的智谱API密钥"' >> ~/.bashrc
+echo 'export ANTHROPIC_BASE_URL="https://open.bigmodel.cn/api/paas/v4"' >> ~/.bashrc
+source ~/.bashrc
+
+# 直接启动
+claude --api-key "$ANTHROPIC_API_KEY" --api-url "$ANTHROPIC_BASE_URL"
+```
+
+#### 方法二：修改配置文件永久生效
+
+编辑配置文件后，无需每次输入验证：
+
+> **💡 重要提示：** 初次安装时配置文件不存在，需要先创建！
+
+**Windows 一键创建配置文件:**
+
+```powershell
+# 复制以下命令到 PowerShell，替换 YOUR_API_KEY 为你的智谱 API Key
+$apiKey = "YOUR_API_KEY"
+
+# 创建目录（如果不存在）
+New-Item -Path "$env:USERPROFILE\.claude" -ItemType Directory -Force | Out-Null
+
+# 创建配置文件
+@"
+{
+  "apiUrl": "https://open.bigmodel.cn/api/paas/v4",
+  "apiKey": "$apiKey",
+  "provider": "zhipu",
+  "model": "glm-4.7",
+  "hasCompletedOnboarding": true
+}
+"@ | Out-File -FilePath "$env:USERPROFILE\.claude\config.json" -Encoding utf8
+
+# 验证配置文件
+Write-Host "配置文件已创建: $env:USERPROFILE\.claude\config.json"
+Get-Content "$env:USERPROFILE\.claude\config.json"
+```
+
+**macOS/Linux 一键创建配置文件:**
+
+```bash
+# 复制以下命令到终端，替换 YOUR_API_KEY 为你的智谱 API Key
+apiKey="YOUR_API_KEY"
+
+# 创建目录（如果不存在）
+mkdir -p ~/.config/claude-code
+
+# 创建配置文件
+cat > ~/.config/claude-code/config.json << EOF
+{
+  "apiUrl": "https://open.bigmodel.cn/api/paas/v4",
+  "apiKey": "$apiKey",
+  "provider": "zhipu",
+  "model": "glm-4.7",
+  "hasCompletedOnboarding": true
+}
+EOF
+
+# 验证配置文件
+echo "配置文件已创建: ~/.config/claude-code/config.json"
+cat ~/.config/claude-code/config.json
+```
+
+**配置文件位置对照表:**
+
+| 系统 | 配置文件路径 | 命令查看 |
+|------|-------------|----------|
+| Windows | `%USERPROFILE%\.claude\config.json` | `echo $env:USERPROFILE\.claude\config.json` |
+| macOS/Linux | `~/.config/claude-code/config.json` | `echo ~/.config/claude-code/config.json` |
+
+**手动创建方式（可选）:**
+
+如果命令行方式不习惯，也可以手动创建：
+
+1. **Windows:**
+   - 按 `Win + R`，输入 `%USERPROFILE%\.claude` 回车
+   - 如果目录不存在，先创建 `.claude` 文件夹
+   - 右键 → 新建 → 文本文档，命名为 `config.json`
+   - 用记事本打开，粘贴以下内容：
+
+```json
+{
+  "apiUrl": "https://open.bigmodel.cn/api/paas/v4",
+  "apiKey": "你的智谱API密钥",
+  "provider": "zhipu",
+  "model": "glm-4.7",
+  "hasCompletedOnboarding": true
+}
+```
+
+2. **macOS/Linux:**
+   ```bash
+   mkdir -p ~/.config/claude-code
+   nano ~/.config/claude-code/config.json
+   # 粘贴 JSON 内容，按 Ctrl+X 保存退出
+   ```
+
+**验证配置是否生效:**
+
+```bash
+# 查看当前配置
+claude config show
+# 或直接运行测试
+claude --version
+```
+
+**配置字段说明:**
+
+| 字段 | 说明 | 是否必需 |
+|------|------|---------|
+| `apiUrl` | API 地址 | ✅ 必需 |
+| `apiKey` | 智谱 API Key | ✅ 必需 |
+| `provider` | 提供商（zhipu/anthropic） | ✅ 必需 |
+| `model` | 使用的模型（glm-4.7/glm-4.5/glm-4-flash） | ✅ 必需 |
+| `hasCompletedOnboarding` | 跳过新手引导/登录验证 | ⭐ 推荐 |
+
+> **💡 关于 `hasCompletedOnboarding`:**
+> - 设置为 `true` 可以跳过 Claude Code 的首次使用引导流程
+> - 避免每次启动时弹出登录/验证提示
+> - 配合 GLM API Key 使用，实现无感启动
+
+#### 方法三：使用启动脚本
+
+创建一个一键启动脚本，避免每次手动配置：
+
+**Windows (start-claude.ps1):**
+```powershell
+# 保存为 start-claude.ps1
+$env:ANTHROPIC_API_KEY="你的智谱API密钥"
+$env:ANTHROPIC_BASE_URL="https://open.bigmodel.cn/api/paas/v4"
+claude $args
+```
+
+使用方式：
+```powershell
+# 允许运行脚本（首次需要）
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+
+# 启动 Claude
+.\start-claude.ps1
+```
+
+**macOS/Linux (start-claude.sh):**
+```bash
+# 保存为 start-claude.sh 并添加执行权限
+#!/bin/bash
+export ANTHROPIC_API_KEY="你的智谱API密钥"
+export ANTHROPIC_BASE_URL="https://open.bigmodel.cn/api/paas/v4"
+claude "$@"
+```
+
+```bash
+chmod +x start-claude.sh
+./start-claude.sh
+```
+
+### 国内镜像加速
+
+如果遇到网络问题，可以配置 npm 镜像：
+
+```bash
+# 使用淘宝镜像
+npm config set registry https://registry.npmmirror.com
+
+# 验证
+npm config get registry
+```
+
+### API 地址对照表
+
+| 用途 | API 地址 |
+|------|----------|
+| GLM Coding (推荐) | `https://open.bigmodel.cn/api/paas/v4` |
+| GLM Coding 备用 | `https://open.bigmodel.cn/api/coding/paas/v4/chat/completions` |
+| 智谱通用 API | `https://open.bigmodel.cn/api/paas/v4/chat/completions` |
+
+---
+
+## 🔄 卸载与重装
+
+### 卸载 Claude Code
+
+如果需要完全卸载 Claude Code，按以下步骤操作：
+
+#### Windows 卸载
+
+```powershell
+# 1. 卸载全局包
+npm uninstall -g @anthropic-ai/claude-code
+
+# 2. 删除配置文件和缓存
+Remove-Item -Path "$env:USERPROFILE\.claude" -Recurse -Force -ErrorAction SilentlyContinue
+Remove-Item -Path "$env:APPDATA\claude-code" -Recurse -Force -ErrorAction SilentlyContinue
+Remove-Item -Path "$env:LOCALAPPDATA\claude-code" -Recurse -Force -ErrorAction SilentlyContinue
+
+# 3. 清除 npm 缓存（可选）
+npm cache clean --force
+```
+
+**一键卸载脚本:**
+```powershell
+# 保存为 uninstall-claude.ps1 并运行
+npm uninstall -g @anthropic-ai/claude-code
+@("$env:USERPROFILE\.claude", "$env:APPDATA\claude-code", "$env:LOCALAPPDATA\claude-code") | ForEach-Object {
+    if (Test-Path $_) { Remove-Item -Path $_ -Recurse -Force }
+}
+Write-Host "Claude Code 已完全卸载" -ForegroundColor Green
+```
+
+#### macOS/Linux 卸载
+
+```bash
+# 1. 卸载全局包
+npm uninstall -g @anthropic-ai/claude-code
+
+# 2. 删除配置文件和缓存
+rm -rf ~/.claude
+rm -rf ~/.config/claude-code
+rm -rf ~/Library/Application\ Support/claude-code  # macOS
+
+# 3. 清除 npm 缓存（可选）
+npm cache clean --force
+
+# 4. 验证卸载
+which claude  # 应该返回空或"not found"
+```
+
+**一键卸载脚本:**
+```bash
+# 保存为 uninstall-claude.sh 并运行
+#!/bin/bash
+npm uninstall -g @anthropic-ai/claude-code
+rm -rf ~/.claude ~/.config/claude-code ~/Library/Application\ Support/claude-code
+npm cache clean --force
+echo "Claude Code 已完全卸载"
+```
+
+### 重装 Claude Code
+
+重装前建议先卸载，然后重新安装：
+
+#### Windows 重装
+
+```powershell
+# 1. 卸载旧版本
+npm uninstall -g @anthropic-ai/claude-code
+
+# 2. 清理缓存
+npm cache clean --force
+
+# 3. 重新安装
+npm install -g @anthropic-ai/claude-code
+
+# 4. 验证安装
+claude --version
+```
+
+#### macOS/Linux 重装
+
+```bash
+# 1. 卸载旧版本
+npm uninstall -g @anthropic-ai/claude-code
+
+# 2. 清理缓存
+npm cache clean --force
+
+# 3. 重新安装
+npm install -g @anthropic-ai/claude-code
+
+# 4. 验证安装
+claude --version
+```
+
+### 重装后恢复配置
+
+如果你之前备份了配置文件，可以直接恢复：
+
+```bash
+# Windows
+Copy-Item -Path "$env:USERPROFILE\.claude.backup\config.json" -Destination "$env:USERPROFILE\.claude\config.json"
+
+# macOS/Linux
+cp ~/.claude.backup/config.json ~/.config/claude-code/config.json
+```
+
+### 保留配置卸载
+
+如果想保留配置文件只卸载程序：
+
+```bash
+# 只卸载程序，不删除配置
+npm uninstall -g @anthropic-ai/claude-code
+
+# 配置文件保留位置
+# Windows: %USERPROFILE%\.claude\config.json
+# macOS/Linux: ~/.config/claude-code/config.json
+```
+
+---
+
 ## 🎮 基本使用
 
 ### 启动 Claude Code
