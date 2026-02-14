@@ -63,21 +63,21 @@ chmod +x lxd-deploy.sh
 
 ### 主命令
 
-| 命令 | 说明 |
-|------|------|
-| `install` | 完整安装和配置 |
-| `lxd` | 仅安装 LXD |
-| `init` | 初始化 LXD |
-| `ui [type]` | 安装 Web UI |
-| `container [name]` | 创建容器 |
+| 命令                   | 说明             |
+| -------------------- | -------------- |
+| `install`            | 完整安装和配置        |
+| `lxd`                | 仅安装 LXD        |
+| `init`               | 初始化 LXD        |
+| `ui [type]`          | 安装 Web UI      |
+| `container [name]`   | 创建容器           |
 | `code-server [name]` | 安装 code-server |
 | `claude-code [name]` | 安装 Claude Code |
-| `vscode [name]` | 安装 VS Code |
-| `module [name]` | 加载功能模块 |
-| `modules` | 列出可用模块 |
-| `status` | 显示部署状态 |
-| `logs` | 显示日志 |
-| `help` | 显示帮助信息 |
+| `vscode [name]`      | 安装 VS Code     |
+| `module [name]`      | 加载功能模块         |
+| `modules`            | 列出可用模块         |
+| `status`             | 显示部署状态         |
+| `logs`               | 显示日志           |
+| `help`               | 显示帮助信息         |
 
 ### 选项
 
