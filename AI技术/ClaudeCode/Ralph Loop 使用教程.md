@@ -47,13 +47,13 @@ done
 
 ```bash
 # 基本用法
-/ralph-loop "重构缓存层"
+/ralph-loop:ralph-loop "重构缓存层"
 
 # 设置最大迭代次数
-/ralph-loop "添加测试" --max-iterations 20
+/ralph-loop:ralph-loop "添加测试" --max-iterations 20
 
 # 使用完成承诺
-/ralph-loop "修复认证模块" --completion-promise "修复完成"
+/ralph-loop:ralph-loop "修复认证模块" --completion-promise "修复完成"
 ```
 
 **工作流程：**
@@ -109,7 +109,7 @@ stop hook 会查找这个特定标签。如果没有这个标签（或没有设�
 ### 示例 1：交互式 Bug 修复
 
 ```bash
-/ralph-loop "修复 auth.ts 中的 token 刷新逻辑。当所有测试通过时输出 <promise>FIXED</promise>" --completion-promise "FIXED" --max-iterations 10
+/ralph-loop:ralph-loop "修复 auth.ts 中的 token 刷新逻辑。当所有测试通过时输出 <promise>FIXED</promise>" --completion-promise "FIXED" --max-iterations 10
 ```
 
 **Ralph 会：**
