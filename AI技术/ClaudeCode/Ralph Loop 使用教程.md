@@ -30,13 +30,13 @@ done
 
 ## 可用命令
 
-### `/ralph-loop` - 启动循环
+### `/ralph-loop:ralph-loop` - 启动循环
 
 启动当前会话中的 Ralph 循环。
 
 **语法：**
 ```
-/ralph-loop "你的提示词" [选项]
+/ralph-loop:ralph-loop "你的提示词" [选项]
 ```
 
 **选项：**
