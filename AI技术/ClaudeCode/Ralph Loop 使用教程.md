@@ -66,13 +66,13 @@ done
 
 ---
 
-### `/cancel-ralph` - 取消循环
+### `/ralph-loop:cancel-ralph` - 取消循环
 
 取消当前激活的 Ralph 循环（删除循环状态文件）。
 
 **语法：**
 ```
-/cancel-ralph
+/ralph-loop:cancel-ralph
 ```
 
 **效果：**
@@ -122,13 +122,13 @@ stop hook 会查找这个特定标签。如果没有这个标签（或没有设�
 ### 示例 2：添加测试覆盖
 
 ```bash
-/ralph-loop "为 src/calculator.ts 添加完整的单元测试，确保覆盖所有函数。完成后输出 <promise>测试完成</promise>" --completion-promise "测试完成" --max-iterations 15
+/ralph-loop:ralph-loop "为 src/calculator.ts 添加完整的单元测试，确保覆盖所有函数。完成后输出 <promise>测试完成</promise>" --completion-promise "测试完成" --max-iterations 15
 ```
 
 ### 示例 3：重构代码
 
 ```bash
-/ralph-loop "重构 user.service.ts，提取重复代码到辅助函数，保持功能不变。完成后输出 <promise>重构完成</promise>" --completion-promise "重构完成"
+/ralph-loop:ralph-loop "重构 user.service.ts，提取重复代码到辅助函数，保持功能不变。完成后输出 <promise>重构完成</promise>" --completion-promise "重构完成"
 ```
 
 ---
@@ -159,20 +159,20 @@ stop hook 会查找这个特定标签。如果没有这个标签（或没有设�
 
 ```bash
 # 好的提示词
-/ralph-loop "修复 API 调用中的错误处理。要求：1) 添加 try-catch 2) 记录错误 3) 返回友好消息。完成后输出 <promise>完成</promise>"
+/ralph-loop:ralph-loop "修复 API 调用中的错误处理。要求：1) 添加 try-catch 2) 记录错误 3) 返回友好消息。完成后输出 <promise>完成</promise>"
 
 # 不好的提示词
-/ralph-loop "改进代码"
+/ralph-loop:ralph-loop "改进代码"
 ```
 
 ### 2. 设置合理的安全限制
 
 ```bash
 # 总是设置最大迭代次数
-/ralph-loop "任务描述" --max-iterations 20
+/ralph-loop:ralph-loop "任务描述" --max-iterations 20
 
 # 同时使用完成承诺和最大迭代
-/ralph-loop "任务描述" --completion-promise "完成" --max-iterations 50
+/ralph-loop:ralph-loop "任务描述" --completion-promise "完成" --max-iterations 50
 ```
 
 ### 3. 使用有意义的完成承诺
@@ -189,7 +189,7 @@ stop hook 会查找这个特定标签。如果没有这个标签（或没有设�
 ### 4. 监控迭代进度
 
 - 观察每次迭代的变化
-- 如果发现错误模式，及时使用 `/cancel-ralph` 取消
+- 如果发现错误模式，及时使用 `/ralph-loop:cancel-ralph` 取消
 - 根据中间结果调整提示词
 
 ---
@@ -203,10 +203,10 @@ stop hook 会查找这个特定标签。如果没有这个标签（或没有设�
 **解决：**
 ```bash
 # 取消当前循环
-/cancel-ralph
+/ralph-loop:cancel-ralph
 
 # 重新启动时添加限制
-/ralph-loop "任务" --max-iterations 20 --completion-promise "完成"
+/ralph-loop:ralph-loop "任务" --max-iterations 20 --completion-promise "完成"
 ```
 
 ### 循环过早停止
@@ -234,9 +234,9 @@ stop hook 会查找这个特定标签。如果没有这个标签（或没有设�
 
 | 命令 | 用途 |
 |------|------|
-| `/ralph-loop "提示词"` | 启动基本循环 |
-| `/ralph-loop "提示" --max-iterations N` | 限制迭代次数 |
-| `/ralph-loop "提示" --completion-promise "文本"` | 使用完成承诺 |
-| `/cancel-ralph` | 取消活动循环 |
+| `/ralph-loop:ralph-loop "提示词"` | 启动基本循环 |
+| `/ralph-loop:ralph-loop "提示" --max-iterations N` | 限制迭代次数 |
+| `/ralph-loop:ralph-loop "提示" --completion-promise "文本"` | 使用完成承诺 |
+| `/ralph-loop:cancel-ralph` | 取消活动循环 |
 
 **记住：** Ralph Loop 是一个强大的迭代工具，但需要明确定义的任务和适当的限制才能发挥最大效用！
