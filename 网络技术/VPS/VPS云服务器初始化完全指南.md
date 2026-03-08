@@ -112,8 +112,7 @@ systemctl restart sshd
 ### 2.1 官方一键安装脚本
 
 ```bash
-curl -sSL https://resource.fit2cloud.com/1panel/package/quick_start.sh -o quick_start.sh && \
-sh quick_start.sh
+bash -c "$(curl -sSL https://resource.fit2cloud.com/1panel/package/v2/quick_start.sh)"
 ```
 
 ### 2.2 安装后配置
