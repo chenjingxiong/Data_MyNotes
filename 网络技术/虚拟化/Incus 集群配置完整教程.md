@@ -14,6 +14,7 @@
 12. [节点初始化脚本](#12-节点初始化脚本)
 13. [常用命令参考](#13-常用命令参考)
 14. [故障排查](#14-故障排查)
+15. [Incus UI 配置](#15-incus-ui-配置)
 
 ---
 
@@ -996,6 +997,8 @@ incus config set container-ubuntu boot.stop.priority=0
 
 ### 9.3 网络配置
 
+#### 9.3.1 基础网络配置
+
 ```bash
 # 添加额外网卡
 incus config device add container-ubuntu eth1 nic nictype=bridged parent=br0
@@ -1003,17 +1006,250 @@ incus config device add container-ubuntu eth1 nic nictype=bridged parent=br0
 # 配置静态 IP
 incus config device override container-ubuntu eth0 \
     ipv4.address=10.10.0.50
+```
 
-# 端口转发
-incus config device add container-ubuntu http-proxy proxy \
+#### 9.3.2 暴露端口到外网
+
+Incus 提供多种方式让外部访问容器内的服务：
+
+**方法 1: 使用 proxy 设备（推荐）**
+
+proxy 设备可以在主机和容器之间转发 TCP/UDP 连接。
+
+```bash
+# 转发单个端口 - 主机 8080 → 容器 80
+incus config device add my-container http-proxy proxy \
     listen=tcp:0.0.0.0:8080 \
-    connect=tcp:127.0.0.1:80
+    connect=tcp:127.0.0.1:80 \
+    bind=host
 
-# 代理/转发
-incus config device add container-ubuntu proxy-tcp proxy \
-    bind=host \
+# 转发到容器 IP（避免容器内没有服务监听 127.0.0.1）
+incus config device add my-container http-proxy proxy \
+    listen=tcp:0.0.0.0:8080 \
+    connect=tcp:10.10.0.50:80 \
+    bind=host
+
+# 转发多个端口
+incus config device add my-container web-proxy proxy \
+    listen=tcp:0.0.0.0:80 \
+    connect=tcp:10.10.0.50:80 \
+    bind=host
+
+incus config device add my-container web-proxy-ssl proxy \
+    listen=tcp:0.0.0.0:443 \
+    connect=tcp:10.10.0.50:443 \
+    bind=host
+
+# 转发 UDP 端口
+incus config device add my-container dns-proxy proxy \
+    listen=udp:0.0.0.0:53 \
+    connect=udp:10.10.0.50:53 \
+    bind=host
+
+# 转发端口段
+incus config device add my-container app-proxy proxy \
+    listen=tcp:0.0.0.0:8000-8010 \
+    connect=tcp:10.10.0.50:8000-8010 \
+    bind=host
+
+# 删除端口转发
+incus config device remove my-container http-proxy
+```
+
+**方法 2: 使用 iptables DNAT 规则**
+
+```bash
+# 获取容器 IP
+CONTAINER_IP=$(incus list -c 4 -f csv my-container)
+
+# 添加 DNAT 规则（主机 8080 → 容器 80）
+sudo iptables -t nat -A PREROUTING -p tcp --dport 8080 -j DNAT \
+    --to-destination ${CONTAINER_IP}:80
+
+# 允许转发
+sudo iptables -A FORWARD -p tcp -d ${CONTAINER_IP} --dport 80 -j ACCEPT
+
+# 保存规则（重启后生效）
+sudo iptables-save | sudo tee /etc/iptables/rules.v4
+
+# 或者使用 ufw
+sudo ufw route allow in on eth0 out on incusbr0 to ${CONTAINER_IP} port 80 proto tcp
+```
+
+**方法 3: 使用 macvlan 网络（容器直接获得公网 IP）**
+
+```bash
+# 创建 macvlan 网络
+incus network create macvlan0 \
+    --type=macvlan \
+    parent=eth0 \
+    ipv4.address=192.168.1.0/24
+
+# 附加到容器
+incus network attach macvlan0 my-container eth1
+
+# 或者在 profile 中配置
+incus profile device add default eth1 nic \
+    nictype=macvlan \
+    parent=eth0
+```
+
+**方法 4: 使用 ipvlan 网络（共享主机 IP）**
+
+```bash
+# 创建 ipvlan 网络
+incus network create ipvlan0 \
+    --type=ipvlan \
+    parent=eth0 \
+    ipv4.address=192.168.1.100/24
+
+# 附加到容器
+incus network attach ipvlan0 my-container eth1
+```
+
+#### 9.3.3 常用服务端口暴露示例
+
+**Web 服务 (HTTP/HTTPS)**
+
+```bash
+# Nginx/Apache
+incus config device add web-server http proxy \
+    listen=tcp:0.0.0.0:80 \
+    connect=tcp:10.10.0.50:80 \
+    bind=host
+
+incus config device add web-server https proxy \
+    listen=tcp:0.0.0.0:443 \
+    connect=tcp:10.10.0.50:443 \
+    bind=host
+```
+
+**数据库服务**
+
+```bash
+# MySQL/MariaDB
+incus config device add mysql-db mysql-proxy proxy \
     listen=tcp:0.0.0.0:3306 \
-    connect=tcp:10.10.0.50:3306
+    connect=tcp:10.10.0.100:3306 \
+    bind=host
+
+# PostgreSQL
+incus config device add postgres-db pg-proxy proxy \
+    listen=tcp:0.0.0.0:5432 \
+    connect=tcp:10.10.0.101:5432 \
+    bind=host
+
+# Redis
+incus config device add redis-cache redis-proxy proxy \
+    listen=tcp:0.0.0.0:6379 \
+    connect=tcp:10.10.0.102:6379 \
+    bind=host
+
+# MongoDB
+incus config device add mongo-db mongo-proxy proxy \
+    listen=tcp:0.0.0.0:27017 \
+    connect=tcp:10.10.0.103:27017 \
+    bind=host
+```
+
+**应用服务**
+
+```bash
+# SSH
+incus config device add my-container ssh-proxy proxy \
+    listen=tcp:0.0.0.0:2222 \
+    connect=tcp:10.10.0.50:22 \
+    bind=host
+
+# 访问: ssh -p 2222 user@<host-ip>
+
+# Grafana
+incus config device add grafana grafana-proxy proxy \
+    listen=tcp:0.0.0.0:3000 \
+    connect=tcp:10.10.0.50:3000 \
+    bind=host
+
+# Prometheus
+incus config device add prometheus prom-proxy proxy \
+    listen=tcp:0.0.0.0:9090 \
+    connect=tcp:10.10.0.51:9090 \
+    bind=host
+```
+
+#### 9.3.4 查看和管理端口转发
+
+```bash
+# 查看容器的所有设备
+incus config device show my-container
+
+# 列出所有 proxy 设备
+incus config device list my-container | grep proxy
+
+# 修改现有 proxy 设备
+incus config device set my-container http-proxy listen=tcp:0.0.0.0:9090
+
+# 删除 proxy 设备
+incus config device remove my-container http-proxy
+
+# 查看端口监听状态
+sudo ss -tlnp | grep -E "80|443|3306"
+sudo netstat -tlnp | grep incus
+```
+
+#### 9.3.5 防火墙配置
+
+暴露端口后需要确保主机防火墙允许访问：
+
+```bash
+# 允许 HTTP/HTTPS
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
+
+# 允许数据库端口（谨慎）
+sudo ufw allow 3306/tcp
+sudo ufw allow 5432/tcp
+
+# 允许自定义端口
+sudo ufw allow 8080/tcp
+sudo ufw allow 2222/tcp
+
+# 只允许特定 IP 访问数据库（推荐）
+sudo ufw allow from 192.168.1.0/24 to any port 3306
+sudo ufw allow from 10.0.0.0/8 to any port 5432
+
+# 查看防火墙状态
+sudo ufw status numbered
+```
+
+#### 9.3.6 端口暴露方式对比
+
+| 方式 | 优点 | 缺点 | 适用场景 |
+|------|------|------|----------|
+| **proxy 设备** | 简单、灵活、易管理 | 性能略有损耗 | 大多数场景，推荐使用 |
+| **iptables DNAT** | 性能最好 | 手动管理，重启失效 | 高性能需求 |
+| **macvlan** | 容器独立 IP | 需要额外 IP 地址 | 需要直接访问容器 |
+| **ipvlan** | 共享主机 IP | 配置较复杂 | 容器不需要独立 IP |
+
+#### 9.3.7 安全建议
+
+```bash
+# 1. 只暴露必要的端口
+incus config device add web-server http proxy \
+    listen=tcp:127.0.0.1:80 \
+    connect=tcp:10.10.0.50:80 \
+    bind=host  # 只监听本地，通过反向代理访问
+
+# 2. 使用防火墙限制访问来源
+sudo ufw allow from 192.168.1.0/24 to any port 3306
+
+# 3. 容器内服务只监听本地
+# 在容器内配置服务监听 127.0.0.1 而非 0.0.0.0
+
+# 4. 使用 TLS/SSL 加密通信
+# 在反向代理层（如 Nginx）处理 SSL
+
+# 5. 定期检查暴露的端口
+incus list -c n,config.devices
 ```
 
 ### 9.4 存储管理
@@ -2090,7 +2326,132 @@ incus image delete <image-fingerprint>
 
 ### 14.1 常见问题
 
-#### 14.1.1 容器无法启动
+#### 14.1.1 主机安装 Docker 后 Incus 容器无法访问网络
+
+**问题描述**：
+
+当主机上安装了 Docker 后，Incus 容器可能会失去网络连接。这是因为 Docker 会修改 iptables 规则和 iptables 链的顺序，导致 Incus 的 NAT 规则被覆盖。
+
+**解决方案 1：修改 Incus 网络防火墙配置**
+
+```bash
+# 方法 A：禁用 Incus 网络的防火墙管理
+incus network set incusbr0 ipv4.firewall=false
+incus network set incusbr0 ipv6.firewall=false
+incus network set incusbr0 ipv4.nat=true
+
+# 重启容器使配置生效
+incus restart <container-name>
+```
+
+**解决方案 2：调整 iptables 规则顺序**
+
+```bash
+# 创建脚本修复 iptables 规则顺序
+cat > /usr/local/bin/fix-incus-network.sh <<'EOF'
+#!/bin/bash
+# 将 Incus 的 NAT 规则移到 Docker 规则之前
+
+# 备份当前规则
+iptables-save > /tmp/iptables-backup-$(date +%s)
+
+# 确保 FORWARD 链默认策略是 ACCEPT
+iptables -P FORWARD ACCEPT
+
+# 确保 Incus 的 NAT 规则在 Docker 之前
+iptables -t nat -D POSTROUTING -j incusbr0-postrouting 2>/dev/null
+iptables -t nat -I POSTROUTING 1 -j incusbr0-postrouting
+
+# 确保关键链存在
+iptables -N incusbr0-forward 2>/dev/null || true
+iptables -N incusbr0-postrouting 2>/dev/null || true
+
+echo "Incus network rules fixed"
+EOF
+
+chmod +x /usr/local/bin/fix-incus-network.sh
+
+# 立即执行
+/usr/local/bin/fix-incus-network.sh
+```
+
+**解决方案 3：配置 Docker 不操作 iptables**
+
+```bash
+# 编辑 Docker 配置
+sudo mkdir -p /etc/docker
+sudo tee /etc/docker/daemon.json <<EOF
+{
+  "iptables": false,
+  "userland-proxy": false
+}
+EOF
+
+# 重启 Docker
+sudo systemctl restart docker
+
+# 注意：这会使 Docker 容器无法访问外网，
+# 需要手动配置 Docker 网络或使用 host 模式
+```
+
+**解决方案 4：使用 systemd 服务自动修复**
+
+```bash
+# 创建 systemd 服务
+sudo tee /etc/systemd/system/incus-network-fix.service <<EOF
+[Unit]
+Description=Fix Incus Network after Docker
+After=network.target docker.service incus.service
+Wants=docker.service incus.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/fix-incus-network.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+sudo systemctl daemon-reload
+sudo systemctl enable incus-network-fix.service
+```
+
+**解决方案 5：为 Docker 容器使用固定 IP 和 macvlan**
+
+```bash
+# 为 Incus 容器使用 macvlan 网络，避免与 Docker 冲突
+incus network create incus-macvlan \
+    --type=macvlan \
+    parent=eth0 \
+    ipv4.address=192.168.1.0/24
+
+# 附加到容器
+incus network attach incus-macvlan <container-name> eth1
+
+# 或者修改默认网络设备
+incus profile device remove default eth0
+incus profile device add default eth0 nic \
+    nictype=macvlan \
+    parent=eth0
+```
+
+**验证修复**：
+
+```bash
+# 在 Incus 容器内测试网络
+incus exec <container-name> -- ping -c 3 8.8.8.8
+incus exec <container-name> -- curl -I https://www.google.com
+
+# 检查 iptables 规则
+iptables -t nat -L POSTROUTING -n --line-numbers
+iptables -L FORWARD -n --line-numbers
+
+# 查看 Incus 网络状态
+incus network show incusbr0
+```
+
+#### 14.1.2 容器无法启动
 
 ```bash
 # 查看详细日志
@@ -2288,6 +2649,488 @@ zfs receive incus-pool/incus < /backup/incus-backup.zfs
 - **GitHub**: https://github.com/lxc/incus
 - **论坛**: https://discuss.linuxcontainers.org/
 - **镜像列表**: https://images.linuxcontainers.org/
+
+---
+
+## 15. Incus UI 配置
+
+### 15.1 Incus UI 简介
+
+Incus 自带了内置的 Web UI，称为 **Incus UI** 或 **System UI**。这是一个轻量级的 Web 界面，可以直接通过浏览器管理 Incus 实例、网络、存储池等。
+
+**主要功能**：
+- 实例管理（容器和虚拟机）
+- 实时日志和控制台访问
+- 网络和存储配置
+- 镜像管理
+- 集群管理
+
+### 15.2 启用 Incus UI
+
+#### 15.2.1 安装 Incus UI 组件
+
+```bash
+# Incus UI 包含在 incus 包中
+# 确保已安装最新版本
+sudo apt update
+sudo apt install --only-upgrade incus
+
+# 验证版本
+incus version
+```
+
+#### 15.2.2 启用 UI 服务
+
+```bash
+# 确保 Incus API 监听所有接口
+incus config set core.https_address '[::]:8443'
+
+# 启用内置 UI（Incus 6.0+ 默认启用）
+incus config set core.ui_enabled true
+
+# 重启 Incus 服务使配置生效
+sudo systemctl restart incus
+
+# 验证 UI 端口（默认 8443，与 API 共用）
+sudo ss -tlnp | grep incus
+```
+
+#### 15.2.3 配置防火墙
+
+```bash
+# 允许 Incus UI/API 端口
+sudo ufw allow 8443/tcp comment 'Incus UI and API'
+
+# 或者只允许特定 IP 访问
+sudo ufw allow from 192.168.1.0/24 to any port 8443
+
+# 查看防火墙状态
+sudo ufw status
+```
+
+### 15.3 访问 Incus UI
+
+#### 15.3.1 直接访问（自签名证书）
+
+```bash
+# 获取服务器 IP
+hostname -I
+
+# 浏览器访问（使用 HTTPS）
+https://<your-server-ip>:8443/ui/
+```
+
+**证书问题**：
+- Incus 使用自签名证书，浏览器会警告"不安全"
+- 每次访问可能需要点击"高级"→"继续访问"
+
+**解决浏览器证书警告**：
+
+**方法 1: 临时接受（简单但不推荐）**
+```
+浏览器点击 → "高级" → "继续访问"
+```
+
+**方法 2: 导入 Incus CA 证书到浏览器（推荐）**
+
+```bash
+# 服务端 - 导出 Incus CA 证书
+sudo cat /var/lib/incus/server.crt | tee ~/incus-ca.crt
+
+# 服务端 - 将证书传输到本地电脑
+# 使用 scp 或其他方式下载 incus-ca.crt
+```
+
+**浏览器端 - 导入证书**：
+
+| 浏览器 | 导入步骤 |
+|--------|----------|
+| **Chrome** | 设置 → 隐私和安全 → 安全 → 管理证书 → 受信任的根证书颁发机构 → 导入 → 选择 `incus-ca.crt` |
+| **Firefox** | 设置 → 隐私与安全 → 证书 → 查看证书 → 证书颁发机构 → 导入 → 选择 `incus-ca.crt` → 勾选"信任此 CA 来标识网站" |
+| **Edge** | 设置 → 隐私、搜索和服务 → 安全 → 管理证书 → 受信任的根证书颁发机构 → 导入 |
+
+导入后，刷新浏览器，不再显示证书警告。
+
+#### 15.3.2 登录认证方式
+
+Incus UI 支持两种登录方式：
+
+**方式 1: 系统用户登录（推荐，最简单）**
+
+```
+用户名: 服务器的 Linux 用户名（如 root 或你的用户名）
+密码: 该用户的登录密码
+```
+
+无需额外配置，直接使用服务器系统账户登录。
+
+**方式 2: 令牌登录（适合受限场景）**
+
+```bash
+# 服务端 - 生成一次性访问令牌
+incus config trust add web-ui-client --type=client
+
+# 查看令牌
+incus config trust list
+```
+
+输出示例：
+```
+| web-ui-client | abc123... | client | eyJwdWJsaWM... |
+```
+
+浏览器端登录时：
+1. 选择"使用令牌登录"
+2. 粘贴令牌（`eyJwdWJsaWM...`）
+3. 设置访问名称
+
+**令牌 vs 系统用户对比**：
+
+| 方式 | 优点 | 缺点 | 适用场景 |
+|------|------|------|----------|
+| **系统用户** | 无需配置，权限完整 | 需要服务器账户密码 | 个人使用、管理后台 |
+| **令牌登录** | 可限制权限、可撤销 | 需提前生成令牌 | 临时访问、多人协作 |
+
+### 15.4 使用 1Panel 配置反向代理
+
+> 前置条件：已通过 1Panel 安装 OpenResty，1Panel 正常运行
+
+#### 15.4.1 为什么使用反向代理
+
+- **HTTPS/TLS**: 使用 Let's Encrypt 可信证书，避免浏览器警告
+- **域名访问**: 使用域名替代 IP:端口，更易记忆
+- **统一入口**: 与其他服务共用 80/443 端口
+- **自动续期**: 1Panel 自动管理证书续期
+
+#### 15.4.2 在 1Panel 中创建网站
+
+**步骤 1: 登录 1Panel**
+
+```bash
+# 浏览器访问 1Panel
+https://<服务器IP>:端口登录
+
+# 默认端口: 10086
+# 使用安装时设置的用户名和密码登录
+```
+
+**步骤 2: 创建网站**
+
+1. 点击左侧菜单 **网站** → **网站**
+2. 点击 **创建网站** 按钮
+3. 选择 **反向代理** 类型
+4. 填写基本信息：
+   ```
+   主域名: incus.example.com
+   备注: Incus UI 管理界面
+   ```
+
+#### 15.4.3 配置反向代理
+
+**方法 1: 通过 1Panel 界面配置（推荐）**
+
+1. 创建网站后，进入网站详情
+2. 点击 **反向代理** 标签
+3. 点击 **添加反向代理**，填写：
+
+   | 配置项 | 值 |
+   |--------|-----|
+   | 代理名称 | incus-ui |
+   | 代理地址 | `https://127.0.0.1:8443` |
+   | 路由 | `/` |
+
+4. 展开高级配置，添加自定义配置：
+
+   ```nginx
+   # WebSocket 支持
+   proxy_set_header Upgrade $http_upgrade;
+   proxy_set_header Connection $connection_upgrade;
+   proxy_http_version 1.1;
+
+   # 标准代理头部
+   proxy_set_header Host $host;
+   proxy_set_header X-Real-IP $remote_addr;
+   proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+   proxy_set_header X-Forwarded-Proto $scheme;
+
+   # SSL 配置
+   proxy_ssl_verify off;
+   proxy_buffering off;
+
+   # 超时设置（控制台需要长连接）
+   proxy_connect_timeout 60s;
+   proxy_send_timeout 300s;
+   proxy_read_timeout 300s;
+
+   # WebSocket 映射
+   map $http_upgrade $connection_upgrade {
+       default upgrade;
+       '' close;
+   }
+   ```
+
+5. 点击 **确认** 保存
+
+**方法 2: 通过配置文件配置**
+
+在网站详情中，点击 **配置文件**，添加以下内容：
+
+```nginx
+location / {
+    proxy_pass https://127.0.0.1:8443;
+    proxy_http_version 1.1;
+
+    # WebSocket 支持
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $connection_upgrade;
+
+    # 标准代理头部
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+
+    # SSL 配置
+    proxy_ssl_verify off;
+    proxy_buffering off;
+    proxy_request_buffering off;
+
+    # 超时设置
+    proxy_connect_timeout 60s;
+    proxy_send_timeout 300s;
+    proxy_read_timeout 300s;
+}
+
+# WebSocket 映射（添加在 http 块或 server 块外部）
+map $http_upgrade $connection_upgrade {
+    default upgrade;
+    '' close;
+}
+```
+
+#### 15.4.4 配置 SSL 证书
+
+**浏览器端操作 - 申请证书**
+
+1. 在 1Panel 网站列表中，找到刚创建的 `incus.example.com`
+2. 点击 **SSL** 标签
+3. 选择 **Let's Encrypt** 证书
+4. 勾选 **自动续期**
+5. 点击 **申请** 按钮
+6. 确保域名已正确解析到服务器 IP
+
+**DNS 解析配置（浏览器端/域名管理后台）**
+
+```
+类型: A
+主机记录: incus
+记录值: <你的服务器公网IP>
+TTL: 600
+```
+
+**证书申请成功后**
+
+1. 状态显示 **已开启**
+2. 自动开启 **强制 HTTPS**（推荐）
+3. 证书到期前自动续期
+
+#### 15.4.5 集群负载均衡配置（可选）
+
+如果有多个 Incus 节点，配置负载均衡：
+
+在 **反向代理** 配置中使用 upstream：
+
+```nginx
+# 在网站配置文件中添加
+upstream incus_cluster {
+    server 10.0.0.10:8443 weight=3 max_fails=2 fail_timeout=30s;
+    server 10.0.0.11:8443 weight=3 max_fails=2 fail_timeout=30s;
+    server 10.0.0.12:8443 weight=2 max_fails=2 fail_timeout=30s backup;
+    keepalive 32;
+}
+
+location / {
+    proxy_pass https://incus_cluster;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $connection_upgrade;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_ssl_verify off;
+    proxy_buffering off;
+}
+```
+
+#### 15.4.6 服务端配置总结
+
+| 操作 | 位置 | 说明 |
+|------|------|------|
+| **启用 Incus UI** | 服务器终端 | `incus config set core.ui_enabled true` |
+| **配置防火墙** | 服务器终端 | `ufw allow 8443/tcp` |
+| **创建网站** | 1Panel 面板 | 反向代理类型 |
+| **配置代理** | 1Panel 面板 | 目标 `https://127.0.0.1:8443` |
+| **申请证书** | 1Panel 面板 | Let's Encrypt 自动申请 |
+| **域名解析** | 域名服务商 | A 记录指向服务器 IP |
+
+#### 15.4.7 浏览器端访问步骤
+
+**前置条件检查**
+
+1. **确保 DNS 解析生效**
+   ```bash
+   # 在本地电脑测试
+   ping incus.example.com
+   # 应该解析到你的服务器 IP
+   ```
+
+2. **确认 1Panel 证书已申请**
+   - 1Panel 中网站状态显示"已开启"
+   - 证书来源为 "Let's Encrypt"
+
+**访问 Incus UI**
+
+```
+浏览器打开: https://incus.example.com/ui/
+```
+
+**证书说明（重要）**：
+
+| 访问方式 | 证书类型 | 浏览器信任状态 | 是否需要导入 |
+|----------|----------|---------------|-------------|
+| **1Panel 代理** | Let's Encrypt | ✅ 自动信任 | ❌ 不需要 |
+| **直接访问** | Incus 自签名 | ⚠️ 警告不安全 | ✅ 需要导入 |
+
+使用 1Panel 反向代理时，Let's Encrypt 证书是全球信任的，浏览器会自动验证，无需任何手动导入。
+
+**登录方式**：
+
+首次访问会显示登录界面，选择以下方式之一：
+
+**方式 1: 系统用户登录（推荐）**
+```
+用户名: 服务器的 Linux 用户名
+密码: 该用户的密码
+```
+
+**方式 2: 令牌登录**
+
+```bash
+# 服务端 - 生成令牌
+incus config trust add web-ui --type=client
+
+# 复制显示的令牌
+# 在浏览器登录界面选择"令牌"并粘贴
+```
+
+**登录成功后**：
+- 可以看到 Incus UI 主界面
+- 查看和管理实例、网络、存储、镜像等
+- 浏览器会保存登录状态
+
+#### 15.4.8 常见问题
+
+**问题 1: 502 Bad Gateway**
+
+```bash
+# 检查 Incus 服务状态
+sudo systemctl status incus
+
+# 确保 Incus 监听在正确端口
+sudo ss -tlnp | grep 8443
+
+# 检查防火墙
+sudo ufw status
+```
+
+**问题 2: WebSocket 连接失败**
+
+确保反向代理配置中包含：
+```nginx
+proxy_set_header Upgrade $http_upgrade;
+proxy_set_header Connection $connection_upgrade;
+proxy_http_version 1.1;
+```
+
+**问题 3: 证书申请失败**
+
+- 检查域名 DNS 解析是否正确
+- 确保服务器 80/443 端口可从外网访问
+- 检查 1Panel 日志：**容器** → **1Panel** → **日志**
+
+```bash
+# 测试 OpenResty 配置语法
+sudo openresty -t
+
+# 重载配置
+sudo systemctl reload openresty
+
+# 检查监听端口
+sudo ss -tlnp | grep openresty
+
+# 测试 HTTPS 访问
+curl -k https://incus.example.com
+
+# 测试 Incus API
+curl -k https://incus.example.com/1.0
+
+# 通过远程连接测试
+incus remote add proxy-incus https://incus.example.com --public
+incus remote list
+incus list proxy-incus:
+```
+
+### 15.5 访问方式总结
+
+| 方式 | 访问地址 | 证书处理 | 浏览器导入 | 适用场景 |
+|------|----------|----------|-----------|----------|
+| **直接访问** | `https://<ip>:8443/ui/` | 自签名证书 | ⚠️ 需要导入 `/var/lib/incus/server.crt` | 内网环境、快速测试 |
+| **1Panel 代理** | `https://incus.example.com` | Let's Encrypt 自动证书 | ✅ 无需导入，自动信任 | 生产环境、外网访问 |
+
+**证书处理对比**：
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        直接访问方式                              │
+├─────────────────────────────────────────────────────────────────┤
+│  浏览器 ───→ 警告不安全 ───→ 点击继续 / 导入CA证书 ───→ Incus UI  │
+│  (自签名)        ⚠️              ⚠️                              │
+└─────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────┐
+│                        1Panel 代理方式                           │
+├─────────────────────────────────────────────────────────────────┤
+│  浏览器 ───→ 自动验证 ───→ 登录界面 ───→ Incus UI                │
+│  (Let's Encrypt)   ✅         👤                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**快速配置流程（推荐 1Panel 方式）**：
+
+```bash
+# === 服务端操作 ===
+# 1. 启用 Incus UI
+incus config set core.https_address '[::]:8443'
+incus config set core.ui_enabled true
+
+# 2. 配置防火墙
+sudo ufw allow 8443/tcp
+
+# === 浏览器端操作 ===
+# 3. 登录 1Panel，创建网站（反向代理）
+# 4. 配置 SSL 证书（Let's Encrypt 自动申请）
+# 5. 域名 DNS 解析: A 记录 incus → <服务器IP>
+
+# === 访问 ===
+# 6. 浏览器访问: https://incus.example.com/ui/
+#    证书自动信任，直接登录即可
+```
+
+**登录方式**：
+
+- **系统用户**: 使用服务器 Linux 用户名和密码（推荐）
+- **令牌登录**: 使用 `incus config trust add` 生成的令牌（适合临时访问）
 
 ---
 
