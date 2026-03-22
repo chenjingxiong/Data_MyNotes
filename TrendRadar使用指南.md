@@ -7,7 +7,10 @@
 - [项目简介](#项目简介)
 - [核心功能](#核心功能)
 - [快速开始](#快速开始)
-- [部署方式](#部署方式)
+  - [GitHub Actions 部署](#方式一github-actions-部署推荐新手)
+  - [Docker 部署](#方式二docker-部署)
+  - [本地运行](#方式三本地运行)
+- [部署方式对比](#部署方式)
 - [配置详解](#配置详解)
 - [AI智能分析](#ai智能分析)
 - [常见问题](#常见问题)
@@ -254,31 +257,360 @@ on:
 
 ### 方式二：Docker 部署
 
-适合有服务器的用户。
+适合有服务器的用户，提供更灵活的部署和更好的环境隔离。
 
-#### 步骤1：安装Docker
+#### 部署方式对比
 
-确保你的系统已安装Docker和Docker Compose。
+Docker支持两种主要部署方式：
 
-#### 步骤2：拉取镜像
+| 方式 | 优点 | 缺点 | 适用场景 |
+|------|------|------|----------|
+| **Docker Run** | 简单直接 | 配置管理不便 | 快速测试、单次运行 |
+| **Docker Compose** | 配置清晰、易于维护 | 需要额外配置文件 | 生产环境、长期运行 |
+
+---
+
+#### 方法一：使用 Docker Compose（推荐）
+
+##### 步骤1：创建项目目录
+
+```bash
+# 创建项目目录
+mkdir -p ~/trendradar
+cd ~/trendradar
+
+# 创建必要的子目录
+mkdir -p config output logs
+```
+
+##### 步骤2：下载配置文件
+
+```bash
+# 克隆项目获取配置文件模板
+git clone https://github.com/sansan0/TrendRadar.git temp
+cp temp/config/* config/
+cp temp/config/config.yaml config/
+rm -rf temp
+
+# 或者手动创建配置文件
+```
+
+##### 步骤3：编辑配置文件
+
+```bash
+# 编辑关键词配置
+vim config/frequency_words.txt
+
+# 编辑主配置文件
+vim config/config.yaml
+```
+
+**关键词配置示例**（`config/frequency_words.txt`）：
+
+```
+# 科技类
+人工智能
+AI
+ChatGPT
+深度学习
+
+# 金融类
+股票
+基金
+理财
+A股
+
+# 娱乐类
+电影
+音乐
+游戏
+```
+
+##### 步骤4：创建环境变量文件
+
+创建 `.env` 文件管理敏感信息：
+
+```bash
+vim .env
+```
+
+**环境变量配置**：
+
+```bash
+# ====================
+# 推送配置
+# ====================
+
+# 飞书推送（推荐）
+FEISHU_WEBHOOK_URL=https://open.feishu.cn/open-apis/bot/v2/hook/xxxxxxxxx
+
+# 企业微信推送
+WEWORK_WEBHOOK_URL=https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xxxxx
+WEWORK_MSG_TYPE=markdown
+
+# Telegram推送
+TELEGRAM_BOT_TOKEN=your_bot_token
+TELEGRAM_CHAT_ID=your_chat_id
+
+# 钉钉推送
+DINGTALK_WEBHOOK_URL=https://oapi.dingtalk.com/robot/send?access_token=xxxxx
+
+# 邮件推送
+SMTP_SERVER=smtp.gmail.com
+SMTP_PORT=587
+SENDER_EMAIL=your@gmail.com
+SENDER_PASSWORD=your_password
+EMAIL_RECIPIENTS=recipient1@example.com,recipient2@example.com
+
+# ====================
+# AI配置（可选）
+# ====================
+
+# DeepSeek（推荐，性价比高）
+AI_API_KEY=sk-xxxxxxxxxxxxxxxx
+AI_API_BASE=https://api.deepseek.com/v1
+
+# 或使用OpenAI
+# AI_API_KEY=sk-xxxxxxxxxxxxxxxx
+# AI_API_BASE=https://api.openai.com/v1
+
+# ====================
+# 存储配置（可选）
+# ====================
+
+# S3兼容存储
+S3_ACCESS_KEY=your_access_key
+S3_SECRET_KEY=your_secret_key
+S3_ENDPOINT=https://your-s3-endpoint.com
+S3_BUCKET=trendradar
+
+# ====================
+# 其他配置
+# ====================
+
+# 时区设置
+TZ=Asia/Shanghai
+
+# 运行模式：daily/current/incremental
+REPORT_MODE=daily
+```
+
+**重要提示**：
+- `.env` 文件包含敏感信息，注意保密
+- 不要将 `.env` 文件提交到版本控制系统
+- 至少配置一种推送方式
+
+##### 步骤5：创建 Docker Compose 配置文件
+
+创建 `docker-compose.yml` 文件：
+
+```bash
+vim docker-compose.yml
+```
+
+**Docker Compose 配置**：
+
+```yaml
+version: '3.8'
+
+services:
+  trendradar:
+    image: wantcat/trendradar:latest
+    container_name: trendradar
+    restart: unless-stopped
+
+    # 环境变量
+    env_file:
+      - .env
+    environment:
+      - TZ=${TZ:-Asia/Shanghai}
+      - REPORT_MODE=${REPORT_MODE:-daily}
+
+    # 数据卷挂载
+    volumes:
+      # 配置文件
+      - ./config/config.yaml:/app/config/config.yaml:ro
+      - ./config/frequency_words.txt:/app/config/frequency_words.txt:ro
+      - ./config/timeline.yaml:/app/config/timeline.yaml:ro
+
+      # 输出目录（可读写）
+      - ./output:/app/output
+
+      # 日志目录（可选）
+      - ./logs:/app/logs
+
+    # 资源限制（可选）
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+
+    # 健康检查
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os; exit(0 if os.path.exists('/app/output') else 1)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+    # 日志配置
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    # 网络配置（可选）
+    # networks:
+    #   - trendradar-network
+
+# 可选：定义网络
+# networks:
+#   trendradar-network:
+#     driver: bridge
+
+# 可选：定义数据卷
+# volumes:
+#   trendradar-data:
+#     driver: local
+```
+
+##### 步骤6：启动服务
+
+```bash
+# 启动服务（后台运行）
+docker-compose up -d
+
+# 查看日志
+docker-compose logs -f
+
+# 查看运行状态
+docker-compose ps
+```
+
+##### 步骤7：配置定时任务
+
+**方法一：使用系统 Cron**
+
+```bash
+# 编辑 crontab
+crontab -e
+
+# 添加定时任务（每天8点和20点运行）
+0 8,20 * * * cd ~/trendradar && docker-compose run --rm trendradar >> logs/cron.log 2>&1
+```
+
+**方法二：使用 Docker 容器自带的 Cron**
+
+修改 `docker-compose.yml`，添加定时任务容器：
+
+```yaml
+services:
+  # 主服务
+  trendradar:
+    image: wantcat/trendradar:latest
+    container_name: trendradar
+    # ... 其他配置保持不变
+
+  # 定时任务服务
+  trendradar-cron:
+    image: wantcat/trendradar:latest
+    container_name: trendradar-cron
+    restart: unless-stopped
+
+    volumes:
+      - ./config:/app/config:ro
+      - ./output:/app/output
+      - ./logs:/app/logs
+
+    env_file:
+      - .env
+
+    # 使用 cron 定时执行
+    command: >
+      sh -c "
+      echo '0 8,20 * * * cd /app && python main.py >> /app/logs/cron.log 2>&1' > /etc/crontabs/root &&
+      crond -f -l 2
+      "
+```
+
+**方法三：使用 GitHub Actions（混合模式）**
+
+在服务器上运行 Docker，通过 GitHub Actions 触发：
+
+```yaml
+# .github/workflows/trigger-docker.yml
+name: Trigger Docker
+
+on:
+  schedule:
+    - cron: '0 0,12 * * *'  # UTC时间 0点和12点（北京时间8点和20点）
+  workflow_dispatch:  # 支持手动触发
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Docker via SSH
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            cd ~/trendradar
+            docker-compose run --rm trendradar
+```
+
+##### 步骤8：验证部署
+
+```bash
+# 手动运行一次测试
+docker-compose run --rm trendradar
+
+# 检查输出目录
+ls -lh output/
+
+# 查看日志
+tail -f logs/*.log
+
+# 检查推送是否成功
+```
+
+---
+
+#### 方法二：使用 Docker Run（简单部署）
+
+适合快速测试和简单场景。
+
+##### 步骤1：拉取镜像
 
 ```bash
 docker pull wantcat/trendradar:latest
 ```
 
-#### 步骤3：准备配置文件
+##### 步骤2：准备配置文件
 
 ```bash
-# 克隆配置文件
-git clone https://github.com/sansan0/TrendRadar.git
-cd TrendRadar
+# 创建目录
+mkdir -p ~/trendradar/{config,output}
+cd ~/trendradar
 
-# 编辑配置文件
+# 下载配置文件
+wget https://raw.githubusercontent.com/sansan0/TrendRadar/main/config/config.yaml -O config/config.yaml
+wget https://raw.githubusercontent.com/sansan0/TrendRadar/main/config/frequency_words.txt -O config/frequency_words.txt
+
+# 编辑配置
 vim config/frequency_words.txt
-vim config/config.yaml
 ```
 
-#### 步骤4：运行容器
+##### 步骤3：运行容器
+
+**基础运行**：
 
 ```bash
 docker run -d \
@@ -289,17 +621,349 @@ docker run -d \
   wantcat/trendradar:latest
 ```
 
-#### 步骤5：设置定时任务
-
-使用系统定时任务或Docker自带的调度功能：
+**完整配置运行**：
 
 ```bash
-# 使用crontab设置每天8点和20点运行
+docker run -d \
+  --name trendradar \
+  --restart unless-stopped \
+  -e TZ=Asia/Shanghai \
+  -e FEISHU_WEBHOOK_URL=https://open.feishu.cn/open-apis/bot/v2/hook/xxxxxxxxx \
+  -e AI_API_KEY=sk-xxxxxxxxxxxxxxxx \
+  -e AI_API_BASE=https://api.deepseek.com/v1 \
+  -v $(pwd)/config/config.yaml:/app/config/config.yaml:ro \
+  -v $(pwd)/config/frequency_words.txt:/app/config/frequency_words.txt:ro \
+  -v $(pwd)/config/timeline.yaml:/app/config/timeline.yaml:ro \
+  -v $(pwd)/output:/app/output \
+  -v $(pwd)/logs:/app/logs \
+  --memory=512m \
+  --cpus=1.0 \
+  wantcat/trendradar:latest
+```
+
+**参数说明**：
+
+| 参数 | 说明 |
+|------|------|
+| `-d` | 后台运行 |
+| `--name` | 容器名称 |
+| `--restart` | 重启策略：`no`/`always`/`on-failure`/`unless-stopped` |
+| `-e` | 环境变量 |
+| `-v` | 挂载卷（`宿主机路径:容器路径[:权限]`） |
+| `--memory` | 内存限制 |
+| `--cpus` | CPU限制 |
+
+##### 步骤4：设置定时任务
+
+```bash
+# 编辑 crontab
 crontab -e
 
-# 添加以下行
-0 8,20 * * * docker restart trendradar
+# 添加定时任务
+0 8,20 * * * cd ~/trendradar && docker start trendradar 2>/dev/null || docker run --rm -v $(pwd)/config:/app/config -v $(pwd)/output:/app/output -e FEISHU_WEBHOOK_URL=your_webhook_url wantcat/trendradar:latest
 ```
+
+---
+
+#### Docker 部署进阶配置
+
+##### 1. 数据持久化
+
+确保数据不会因容器重启而丢失：
+
+```yaml
+volumes:
+  # 配置文件（只读）
+  - ./config/config.yaml:/app/config/config.yaml:ro
+  - ./config/frequency_words.txt:/app/config/frequency_words.txt:ro
+
+  # 输出数据（读写）
+  - ./output:/app/output
+
+  # 数据库（如果使用SQLite）
+  - ./data:/app/data
+
+  # 日志
+  - ./logs:/app/logs
+```
+
+##### 2. 资源限制
+
+防止容器占用过多资源：
+
+```yaml
+deploy:
+  resources:
+    limits:
+      cpus: '1.0'      # 最多使用1个CPU核心
+      memory: 512M     # 最多使用512MB内存
+    reservations:
+      cpus: '0.5'      # 保证0.5个CPU核心
+      memory: 256M     # 保证256MB内存
+```
+
+##### 3. 日志管理
+
+配置日志轮转，避免磁盘占满：
+
+```yaml
+logging:
+  driver: "json-file"
+  options:
+    max-size: "10m"    # 单个日志文件最大10MB
+    max-file: "3"      # 最多保留3个日志文件
+```
+
+##### 4. 健康检查
+
+自动监控容器状态：
+
+```yaml
+healthcheck:
+  test: ["CMD", "python", "-c", "import os; exit(0 if os.path.exists('/app/output') else 1)"]
+  interval: 30s        # 每30秒检查一次
+  timeout: 10s         # 超时时间10秒
+  retries: 3           # 失败3次标记为不健康
+  start_period: 40s    # 启动后40秒才开始检查
+```
+
+##### 5. 网络配置
+
+如果需要访问其他服务：
+
+```yaml
+networks:
+  trendradar-network:
+    driver: bridge
+
+services:
+  trendradar:
+    networks:
+      - trendradar-network
+```
+
+---
+
+#### Docker 常用管理命令
+
+##### 容器管理
+
+```bash
+# 启动服务
+docker-compose up -d
+
+# 停止服务
+docker-compose down
+
+# 重启服务
+docker-compose restart
+
+# 查看日志
+docker-compose logs -f
+
+# 查看运行状态
+docker-compose ps
+
+# 进入容器
+docker-compose exec trendradar sh
+
+# 更新镜像
+docker-compose pull
+docker-compose up -d
+```
+
+##### 数据备份
+
+```bash
+# 备份配置
+tar -czf trendradar-config-$(date +%Y%m%d).tar.gz config/
+
+# 备份输出数据
+tar -czf trendradar-output-$(date +%Y%m%d).tar.gz output/
+
+# 备份所有数据
+tar -czf trendradar-backup-$(date +%Y%m%d).tar.gz config/ output/ logs/
+```
+
+##### 数据恢复
+
+```bash
+# 解压备份
+tar -xzf trendradar-backup-20260322.tar.gz
+
+# 重启服务
+docker-compose restart
+```
+
+---
+
+#### Docker 部署故障排查
+
+##### 问题1：容器无法启动
+
+```bash
+# 查看容器日志
+docker logs trendradar
+
+# 查看容器详细信息
+docker inspect trendradar
+
+# 检查配置文件语法
+docker-compose config
+```
+
+##### 问题2：配置文件不生效
+
+```bash
+# 检查文件挂载
+docker exec trendradar ls -la /app/config/
+
+# 查看容器内配置
+docker exec trendradar cat /app/config/config.yaml
+
+# 检查文件权限
+ls -la config/
+```
+
+##### 问题3：推送失败
+
+```bash
+# 检查环境变量
+docker exec trendradar env | grep -E 'WEBHOOK|TOKEN'
+
+# 手动运行测试
+docker-compose run --rm trendradar
+
+# 查看详细日志
+docker-compose logs --tail=100 -f
+```
+
+##### 问题4：磁盘空间不足
+
+```bash
+# 清理未使用的镜像
+docker image prune -a
+
+# 清理未使用的容器
+docker container prune
+
+# 清理未使用的卷
+docker volume prune
+
+# 一键清理所有未使用资源
+docker system prune -a --volumes
+```
+
+---
+
+#### Docker 多场景部署示例
+
+##### 场景1：个人使用（单机部署）
+
+适合个人用户，在一台服务器上部署：
+
+```yaml
+version: '3.8'
+
+services:
+  trendradar:
+    image: wantcat/trendradar:latest
+    container_name: trendradar
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ./config:/app/config:ro
+      - ./output:/app/output
+```
+
+##### 场景2：团队使用（多推送）
+
+适合团队使用，推送到多个群：
+
+```yaml
+version: '3.8'
+
+services:
+  trendradar-team:
+    image: wantcat/trendradar:latest
+    container_name: trendradar-team
+    restart: unless-stopped
+    environment:
+      # 多个飞书群，用分号分隔
+      - FEISHU_WEBHOOK_URL=${FEISHU_WEBHOOK_URL_1};${FEISHU_WEBHOOK_URL_2}
+      - TZ=Asia/Shanghai
+    volumes:
+      - ./config:/app/config:ro
+      - ./output:/app/output
+```
+
+##### 场景3：多实例部署（不同配置）
+
+适合需要不同监控策略的场景：
+
+```yaml
+version: '3.8'
+
+services:
+  # 实例1：监控科技新闻
+  trendradar-tech:
+    image: wantcat/trendradar:latest
+    container_name: trendradar-tech
+    environment:
+      - FEISHU_WEBHOOK_URL=${FEISHU_WEBHOOK_URL_TECH}
+    volumes:
+      - ./config-tech:/app/config:ro
+      - ./output-tech:/app/output
+
+  # 实例2：监控财经新闻
+  trendradar-finance:
+    image: wantcat/trendradar:latest
+    container_name: trendradar-finance
+    environment:
+      - FEISHU_WEBHOOK_URL=${FEISHU_WEBHOOK_URL_FINANCE}
+    volumes:
+      - ./config-finance:/app/config:ro
+      - ./output-finance:/app/output
+```
+
+##### 场景4：高可用部署（主备模式）
+
+适合对稳定性要求高的场景：
+
+```yaml
+version: '3.8'
+
+services:
+  # 主实例
+  trendradar-primary:
+    image: wantcat/trendradar:latest
+    container_name: trendradar-primary
+    restart: unless-stopped
+    environment:
+      - FEISHU_WEBHOOK_URL=${FEISHU_WEBHOOK_URL_PRIMARY}
+    volumes:
+      - ./config:/app/config:ro
+      - ./output-primary:/app/output
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os; exit(0 if os.path.exists('/app/output') else 1)"]
+      interval: 5m
+
+  # 备用实例（主实例失败时接管）
+  trendradar-backup:
+    image: wantcat/trendradar:latest
+    container_name: trendradar-backup
+    restart: unless-stopped
+    environment:
+      - FEISHU_WEBHOOK_URL=${FEISHU_WEBHOOK_URL_BACKUP}
+    volumes:
+      - ./config:/app/config:ro
+      - ./output-backup:/app/output
+```
+
+---
+
+### 方式三：本地运行
 
 ### 方式三：本地运行
 
