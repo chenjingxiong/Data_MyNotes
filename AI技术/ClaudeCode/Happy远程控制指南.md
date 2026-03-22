@@ -28,6 +28,299 @@ cd /path/to/your/project
 claude
 ```
 
+## 新增被控端：安装和配置
+
+### 前置条件检查
+
+在开始之前，确保被控端机器满足以下条件：
+
+```bash
+# 检查操作系统（推荐）
+# macOS 12+, Ubuntu 20.04+, Debian 11+, Windows 10+
+
+# 检查网络连接
+ping -c 3 claude.ai
+
+# 检查 Node.js 版本（如果需要）
+node --version  # 推荐 v18+
+```
+
+### 步骤 1：安装 Claude Code CLI
+
+#### macOS / Linux
+
+```bash
+# 使用 npm 安装（推荐）
+npm install -g @anthropic-ai/claude-code
+
+# 或使用 Homebrew（macOS）
+brew install claude-code
+
+# 验证安装
+claude --version
+```
+
+#### Windows
+
+```powershell
+# 使用 npm 安装
+npm install -g @anthropic-ai/claude-code
+
+# 或使用 Chocolatey
+choco install claude-code
+
+# 验证安装
+claude --version
+```
+
+### 步骤 2：登录 Claude 账户
+
+```bash
+# 启动登录流程
+claude
+/login
+```
+
+系统会打开浏览器进行身份验证。验证成功后，终端会显示登录确认。
+
+### 步骤 3：配置项目目录
+
+```bash
+# 进入你的项目目录
+cd /path/to/your/project
+
+# 首次运行以接受工作区信任
+claude
+
+# 按提示信任该工作区
+```
+
+### 步骤 4：配置自动启动（可选）
+
+如果你希望被控端能够持续接受远程连接，可以配置守护进程。
+
+#### 使用 systemd（Linux）
+
+```bash
+# 创建服务文件
+sudo cat > /etc/systemd/system/claude-remote.service << 'EOF'
+[Unit]
+Description=Claude Code Remote Control Service
+After=network.target
+
+[Service]
+Type=simple
+User=YOUR_USERNAME
+WorkingDirectory=/path/to/your/project
+ExecStart=/usr/local/bin/claude remote-control --name "RemoteSession"
+Restart=on-failure
+RestartSec=10
+Environment="HAPPY_SERVER_URL=https://your-domain.com"
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# 替换 YOUR_USERNAME 和项目路径
+
+# 启动服务
+sudo systemctl daemon-reload
+sudo systemctl enable claude-remote
+sudo systemctl start claude-remote
+
+# 查看状态
+sudo systemctl status claude-remote
+```
+
+#### 使用 launchd（macOS）
+
+```bash
+# 创建 plist 文件
+cat > ~/Library/LaunchAgents/com.claude.remote.plist << 'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.claude.remote</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/local/bin/claude</string>
+        <string>remote-control</string>
+        <string>--name</string>
+        <string>RemoteSession</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>/path/to/your/project</string>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>HAPPY_SERVER_URL</key>
+        <string>https://your-domain.com</string>
+    </dict>
+</dict>
+</plist>
+EOF
+
+# 加载服务
+launchctl load ~/Library/LaunchAgents/com.claude.remote.plist
+
+# 查看状态
+launchctl list | grep claude
+```
+
+#### 使用 Docker（跨平台）
+
+```bash
+# 创建 Dockerfile
+cat > Dockerfile << 'EOF'
+FROM node:18-alpine
+
+# 安装 Claude Code CLI
+RUN npm install -g @anthropic-ai/claude-code
+
+# 设置工作目录
+WORKDIR /workspace
+
+# 复制项目文件
+COPY . .
+
+# 暴露端口（如果需要）
+# EXPOSE 3000
+
+# 启动远程控制会话
+CMD ["claude", "remote-control", "--name", "DockerSession"]
+EOF
+
+# 构建镜像
+docker build -t claude-remote .
+
+# 运行容器
+docker run -d \
+  --name claude-remote \
+  -v /path/to/your/project:/workspace \
+  -e HAPPY_SERVER_URL=https://your-domain.com \
+  --restart unless-stopped \
+  claude-remote
+
+# 查看日志
+docker logs -f claude-remote
+```
+
+#### 使用 PM2（Node.js 环境）
+
+```bash
+# 安装 PM2
+npm install -g pm2
+
+# 启动守护进程
+pm2 start "claude remote-control --name 'PM2Session'" \
+  --name claude-remote \
+  --cwd /path/to/your/project \
+  --env HAPPY_SERVER_URL=https://your-domain.com
+
+# 保存 PM2 配置
+pm2 save
+
+# 设置开机自启
+pm2 startup
+# 按提示执行命令
+
+# 查看状态
+pm2 status
+pm2 logs claude-remote
+```
+
+#### 使用 screen/tmux（简单方式）
+
+```bash
+# 使用 screen
+screen -S claude-remote
+claude remote-control --name "ScreenSession"
+# 按 Ctrl+A, D 分离会话
+
+# 重新连接
+screen -r claude-remote
+
+# 或使用 tmux
+tmux new -s claude-remote
+claude remote-control --name "TmuxSession"
+# 按 Ctrl+B, D 分离会话
+
+# 重新连接
+tmux attach -t claude-remote
+```
+
+### 步骤 5：验证连接
+
+```bash
+# 检查服务状态
+# systemd:
+sudo systemctl status claude-remote
+
+# launchd:
+launchctl list | grep claude
+
+# Docker:
+docker ps | grep claude-remote
+
+# PM2:
+pm2 status
+
+# 查看日志（查找连接 URL 和 QR 码提示）
+sudo journalctl -u claude-remote -f  # systemd
+docker logs -f claude-remote          # Docker
+pm2 logs claude-remote                # PM2
+```
+
+### 步骤 6：从控制端连接
+
+现在你可以从任何设备连接到这个被控端：
+
+1. **使用自建服务器**：查看日志中的连接 URL
+2. **扫描 QR 码**：如果服务支持 QR 码显示
+3. **使用 Claude App**：在会话列表中查找带有绿色电脑图标的会话
+
+### 防火墙配置
+
+确保被控端可以出站连接到服务器：
+
+```bash
+# macOS
+sudo /usr/libexec/ApplicationFirewall/socketfilterfw --add /usr/local/bin/claude
+sudo /usr/libexec/ApplicationFirewall/socketfilterfw --unblockapp /usr/local/bin/claude
+
+# Linux (ufw)
+sudo ufw allow out 443/tcp
+
+# Linux (firewalld)
+sudo firewall-cmd --permanent --add-service=https
+sudo firewall-cmd --reload
+```
+
+### 多被控端管理
+
+如果你需要管理多个被控端：
+
+```bash
+# 为每个被控端设置唯一名称
+claude remote-control --name "Office-Desktop"
+claude remote-control --name "Home-Server"
+claude remote-control --name "Development-VM"
+
+# 使用配置文件管理
+cat > ~/.claude/config.json << 'EOF'
+{
+  "happy.server": "https://your-domain.com",
+  "remoteControl.autoEnable": true,
+  "remoteControl.defaultName": "MyRemoteSession"
+}
+EOF
+```
+
 ## 快速开始
 
 ### 方式一：启动新的 Remote Control 会话
@@ -409,13 +702,13 @@ curl https://your-domain.com/health
 
 ## 自建 vs 云端对比
 
-| 特性 | 自建服务器 | 官方云端 |
-|------|-----------|---------|
-| 数据隐私 | 完全自主 | 第三方托管 |
-| 部署难度 | 需要公网服务器 | 零配置 |
-| 维护成本 | 需要维护 | 无需维护 |
-| SSL证书 | 自动获取 | 自动配置 |
-| 成本 | 服务器费用 | 免费/付费订阅 |
+| 特性    | 自建服务器   | 官方云端    |
+| ----- | ------- | ------- |
+| 数据隐私  | 完全自主    | 第三方托管   |
+| 部署难度  | 需要公网服务器 | 零配置     |
+| 维护成本  | 需要维护    | 无需维护    |
+| SSL证书 | 自动获取    | 自动配置    |
+| 成本    | 服务器费用   | 免费/付费订阅 |
 
 ## 参考资源
 
