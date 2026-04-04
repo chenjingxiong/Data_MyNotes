@@ -231,6 +231,9 @@ git submodule sync
 git add .gitmodules
 git commit -m "更新子模块地址至我的Fork"
 git push origin master
+
+git submodule update --init --recursive
+
 ```
 
 ### 3.6 修改 ID/中继服务器地址
