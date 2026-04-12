@@ -8,108 +8,108 @@
 
 ## 一、完整排行榜
 
-| 排名 | 项目 | ⭐ Stars | 分类 | 简介 |
-|:---:|------|-------:|------|------|
-| 1 | [rust](https://github.com/rust-lang/rust) | 111,508 | 语言核心 | Rust 编程语言本身 |
-| 2 | [rustdesk](https://github.com/rustdesk/rustdesk) | 110,012 | 远程桌面 | 开源远程桌面应用，TeamViewer 替代品 |
-| 3 | [deno](https://github.com/denoland/deno) | 106,444 | 运行时 | 现代 JavaScript/TypeScript 运行时 |
-| 4 | [tauri](https://github.com/tauri-apps/tauri) | 104,618 | 桌面开发 | 用 Web 技术构建桌面和移动应用 |
-| 5 | [uv](https://github.com/astral-sh/uv) | 82,053 | 包管理 | 极速 Python 包和项目管理器 |
-| 6 | [zed](https://github.com/zed-industries/zed) | 77,905 | 编辑器 | 高性能多人协作代码编辑器 |
-| 7 | [union](https://github.com/unionlabs/union) | 74,195 | 区块链 | 零知识证明跨链桥协议 |
-| 8 | [codex](https://github.com/openai/codex) | 67,637 | AI 编程 | 终端轻量级 AI 编程代理 |
-| 9 | [alacritty](https://github.com/alacritty/alacritty) | 63,126 | 终端 | 跨平台 OpenGL 终端模拟器 |
-| 10 | [rustlings](https://github.com/rust-lang/rustlings) | 62,296 | 学习 | Rust 小练习，帮助上手读写代码 |
-| 11 | [sway](https://github.com/FuelLabs/sway) | 61,856 | 区块链 | 为区块链设计的智能合约语言 |
-| 12 | [ripgrep](https://github.com/BurntSushi/ripgrep) | 61,405 | CLI 工具 | 极速正则搜索工具（rg） |
-| 13 | [bat](https://github.com/sharkdp/bat) | 57,822 | CLI 工具 | 带语法高亮的 cat 替代品 |
-| 14 | [vaultwarden](https://github.com/dani-garcia/vaultwarden) | 57,325 | 安全 | 非官方 Bitwarden 兼容服务器 |
-| 15 | [fuel-core](https://github.com/FuelLabs/fuel-core) | 57,257 | 区块链 | Fuel v2 协议全节点实现 |
-| 16 | [meilisearch](https://github.com/meilisearch/meilisearch) | 56,744 | 搜索引擎 | 闪电般快速的搜索引擎 API |
-| 17 | [awesome-rust](https://github.com/rust-unofficial/awesome-rust) | 56,368 | 资源列表 | Rust 精选代码和资源列表 |
-| 18 | [starship](https://github.com/starship/starship) | 55,329 | Shell | 极速可定制的命令行提示符 |
-| 19 | [ChatGPT](https://github.com/lencx/ChatGPT) | 54,366 | AI 应用 | ChatGPT 桌面客户端 |
-| 20 | [typst](https://github.com/typst/typst) | 52,278 | 排版系统 | 基于标记的现代排版系统 |
-| 21 | [Pake](https://github.com/tw93/Pake) | 47,005 | 桌面开发 | 一条命令将网页变桌面应用 |
-| 22 | [ruff](https://github.com/astral-sh/ruff) | 46,698 | 开发工具 | 极速 Python Linter 和格式化工具 |
-| 23 | [bevy](https://github.com/bevyengine/bevy) | 45,286 | 游戏引擎 | 数据驱动的 Rust 游戏引擎 |
-| 24 | [helix](https://github.com/helix-editor/helix) | 43,639 | 编辑器 | 后现代模态文本编辑器 |
-| 25 | [fuels-rs](https://github.com/FuelLabs/fuels-rs) | 43,344 | 区块链 | Fuel 网络 Rust SDK |
-| 26 | [RuView](https://github.com/pi-lab/RuView) | 42,426 | 学术研究 | WiFi 信号实时人体姿态估计 |
-| 27 | [fd](https://github.com/sharkdp/fd) | 42,190 | CLI 工具 | 简单快速的 find 替代品 |
-| 28 | [hyperswitch](https://github.com/juspay/hyperswitch) | 41,777 | 支付 | 开源支付交换机 |
-| 29 | [nushell](https://github.com/nushell/nushell) | 38,851 | Shell | 结构化数据的新型 Shell |
-| 30 | [lapce](https://github.com/lapce/lapce) | 38,184 | 编辑器 | 闪电般快速的代码编辑器 |
-| 31 | [polars](https://github.com/pola-rs/polars) | 37,852 | 数据处理 | 极速 DataFrame 查询引擎 |
-| 32 | [spacedrive](https://github.com/spacedriveapp/spacedrive) | 37,494 | 文件管理 | 开源跨平台分布式文件管理器 |
-| 33 | [servo](https://github.com/servo/servo) | 36,120 | 浏览器引擎 | 高性能 Web 引擎 |
-| 34 | [dioxus](https://github.com/DioxusLabs/dioxus) | 35,455 | 全栈框架 | Web、桌面和移动全栈应用框架 |
-| 35 | [yazi](https://github.com/sxyazi/yazi) | 35,301 | 文件管理 | 极速终端文件管理器 |
-| 36 | [zoxide](https://github.com/ajeetdsouza/zoxide) | 34,928 | CLI 工具 | 更智能的 cd 命令 |
-| 37 | [goose](https://github.com/block/goose) | 33,581 | AI 编程 | 开源可扩展 AI 编程代理 |
-| 38 | [cc-switch](https://github.com/anthropics/cc-switch) | 33,527 | 开发工具 | Claude Code / Codex 等多账户切换工具 |
-| 39 | [swc](https://github.com/swc-project/swc) | 33,323 | 编译工具 | Rust 驱动的 Web 编译平台 |
-| 40 | [firecracker](https://github.com/firecracker-microvm/firecracker) | 33,298 | 虚拟化 | 安全极速的 Serverless 微型 VM |
-| 41 | [sniffnet](https://github.com/GyulyVGC/sniffnet) | 33,085 | 网络监控 | 舒适地监控你的网络流量 |
-| 42 | [tabby](https://github.com/TabbyML/tabby) | 33,053 | AI 编程 | 自托管 AI 编程助手 |
-| 43 | [fish-shell](https://github.com/fish-shell/fish-shell) | 32,971 | Shell | 用户友好的命令行 Shell |
-| 44 | [comprehensive-rust](https://github.com/google/comprehensive-rust) | 32,784 | 学习 | Google Android 团队使用的 Rust 课程 |
-| 45 | [yew](https://github.com/yewstack/yew) | 32,495 | Web 框架 | Rust + WebAssembly 前端框架 |
-| 46 | [just](https://github.com/casey/just) | 32,371 | 构建工具 | 简单好用的命令运行器 |
-| 47 | [linera-protocol](https://github.com/linera-io/linera-protocol) | 32,156 | 区块链 | Linera 协议主仓库 |
-| 48 | [surrealdb](https://github.com/surrealdb/surrealdb) | 31,669 | 数据库 | 分布式文档图数据库 |
-| 49 | [tokio](https://github.com/tokio-rs/tokio) | 31,500 | 异步运行时 | Rust 异步编程运行时 |
-| 50 | [influxdb](https://github.com/influxdata/influxdb) | 31,381 | 数据库 | 可扩展的时序数据库 |
-| 51 | [zellij](https://github.com/zellij-org/zellij) | 30,424 | 终端 | 功能齐全的终端工作区 |
-| 52 | [czkawka](https://github.com/qarmin/czkawka) | 30,200 | 系统工具 | 多功能重复文件查找工具 |
-| 53 | [rust-course](https://github.com/sunface/rust-course) | 30,155 | 学习 | Rust 语言圣经（中文） |
-| 54 | [turborepo](https://github.com/vercel/turborepo) | 30,060 | 构建工具 | JS/TS 高性能构建系统 |
-| 55 | [iced](https://github.com/iced-rs/iced) | 29,966 | GUI | 受 Elm 启发的跨平台 GUI 库 |
-| 56 | [qdrant](https://github.com/qdrant/qdrant) | 29,853 | 向量数据库 | 高性能 AI 向量数据库 |
-| 57 | [delta](https://github.com/dandavison/delta) | 29,669 | Git 工具 | Git diff 语法高亮分页器 |
-| 58 | [atuin](https://github.com/atuinsh/atuin) | 28,829 | Shell | 让 Shell 历史变得神奇 |
-| 59 | [zeroclaw](https://github.com/zeroclaw/zeroclaw) | 28,796 | AI 助手 | 快速小巧的 AI 个人助理基础设施 |
-| 60 | [egui](https://github.com/emilk/egui) | 28,519 | GUI | 即时模式 GUI 库 |
-| 61 | [hyperfine](https://github.com/sharkdp/hyperfine) | 27,759 | CLI 工具 | 命令行基准测试工具 |
-| 62 | [jj](https://github.com/jj-vcs/jj) | 27,305 | 版本控制 | Git 兼容的版本控制系统 |
-| 63 | [Antigravity-Manager](https://github.com/nicepkg/Antigravity-Manager) | 27,196 | 开发工具 | AI 编程代理账户管理器 |
-| 64 | [anki](https://github.com/ankitects/anki) | 27,051 | 教育 | 智能间隔重复记忆卡片 |
-| 65 | [chroma](https://github.com/chroma-core/chroma) | 26,826 | AI 数据库 | AI 数据基础设施 |
-| 66 | [pingora](https://github.com/cloudflare/pingora) | 26,298 | 网络服务 | Cloudflare 开源的网络服务库 |
-| 67 | [mise](https://github.com/jdx/mise) | 26,073 | 开发工具 | 开发工具版本管理器 |
-| 68 | [Rocket](https://github.com/SergioBenitez/Rocket) | 25,702 | Web 框架 | Rust Web 框架 |
-| 69 | [fhevm](https://github.com/zama-ai/fhevm) | 25,620 | 区块链 | 全同态加密 + 区块链框架 |
-| 70 | [Rust](https://github.com/TheAlgorithms/Rust) | 25,601 | 学习 | 常见算法的 Rust 实现 |
-| 71 | [axum](https://github.com/tokio-rs/axum) | 25,415 | Web 框架 | 模块化 HTTP Web 框架 |
-| 72 | [wezterm](https://github.com/wezterm/wezterm) | 25,135 | 终端 | GPU 加速跨平台终端模拟器 |
-| 73 | [agent-browser](https://github.com/nicepkg/agent-browser) | 24,903 | AI 工具 | AI 代理浏览器自动化 CLI |
-| 74 | [Graphite](https://github.com/GraphiteEditor/Graphite) | 24,880 | 图形设计 | 开源 2D 图形设计工具 |
-| 75 | [difftastic](https://github.com/Wilfred/difftastic) | 24,769 | Diff 工具 | 理解语法的结构化 diff |
-| 76 | [fnm](https://github.com/Schniz/fnm) | 24,644 | 版本管理 | 快速 Node.js 版本管理器 |
-| 77 | [actix-web](https://github.com/actix/actix-web) | 24,507 | Web 框架 | 强大极速的 Web 框架 |
-| 78 | [exa](https://github.com/ogham/exa) | 24,414 | CLI 工具 | 现代 ls 替代品 |
-| 79 | [tree-sitter](https://github.com/tree-sitter/tree-sitter) | 24,356 | 解析器 | 增量式编程语言解析系统 |
-| 80 | [SpacetimeDB](https://github.com/clockworklabs/SpacetimeDB) | 24,198 | 数据库 | 实时多人应用数据库 |
-| 81 | [biome](https://github.com/biomejs/biome) | 24,171 | 开发工具 | Web 项目格式化和 Lint 工具链 |
-| 82 | [vibe-kanban](https://github.com/nicepkg/vibe-kanban) | 23,812 | AI 编程 | 提升 AI 编程代理效率的看板 |
-| 83 | [rustfs](https://github.com/rustfs/rustfs) | 23,780 | 存储 | S3 兼容高性能对象存储 |
-| 84 | [tools](https://github.com/rome/tools) | 23,486 | 开发工具 | JS/TS/Web 统一开发工具 |
-| 85 | [coreutils](https://github.com/uutils/coreutils) | 22,963 | 系统工具 | GNU coreutils 的 Rust 重写 |
-| 86 | [cli](https://github.com/nicepkg/gpt-runner) | 22,556 | CLI 工具 | Google Workspace 命令行工具 |
-| 87 | [flow](https://github.com/nicepkg/flow) | 22,211 | 开发工具 | JavaScript 静态类型增强 |
-| 88 | [slint](https://github.com/slint-ui/slint) | 22,087 | GUI | 声明式跨平台 GUI 工具包 |
-| 89 | [RustPython](https://github.com/RustPython/RustPython) | 21,915 | 解释器 | 用 Rust 编写的 Python 解释器 |
-| 90 | [niri](https://github.com/YaLTeR/niri) | 21,826 | 窗口管理 | 滚动平铺 Wayland 合成器 |
-| 91 | [gitui](https://github.com/extrawurst/gitui) | 21,626 | Git 工具 | 极速终端 Git UI |
-| 92 | [vector](https://github.com/vectordotdev/vector) | 21,551 | 数据管道 | 高性能可观测数据管道 |
-| 93 | [nautilus_trader](https://github.com/nautechsystems/nautilus_trader) | 21,432 | 量化交易 | 生产级 Rust 原生交易引擎 |
-| 94 | [mdBook](https://github.com/rust-lang/mdBook) | 21,394 | 文档 | Markdown 生成在线书籍 |
-| 95 | [neon](https://github.com/neondatabase/neon) | 21,329 | 数据库 | Serverless Postgres，支持自动扩缩容 |
-| 96 | [gleam](https://github.com/gleam-lang/gleam) | 21,297 | 编程语言 | 类型安全的系统构建语言 |
-| 97 | [sonic](https://github.com/valeriansaliou/sonic) | 21,172 | 搜索引擎 | 轻量级无模式搜索后端 |
-| 98 | [flow](https://github.com/nicepkg/flow) | 21,156 | 开发工具 | 项目加速工具集 |
-| 99 | [eza](https://github.com/eza-community/eza) | 20,815 | CLI 工具 | 现代 ls 替代品（exa 维继） |
-| 100 | [wasmer](https://github.com/wasmerio/wasmer) | 20,535 | 运行时 | 基于 WebAssembly 的轻量级容器 |
+| 排名  | 项目                                                                    | ⭐ Stars | 分类      | 简介                           |
+| :-: | --------------------------------------------------------------------- | ------: | ------- | ---------------------------- |
+|  1  | [rust](https://github.com/rust-lang/rust)                             | 111,508 | 语言核心    | Rust 编程语言本身                  |
+|  2  | [rustdesk](https://github.com/rustdesk/rustdesk)                      | 110,012 | 远程桌面    | 开源远程桌面应用，TeamViewer 替代品      |
+|  3  | [deno](https://github.com/denoland/deno)                              | 106,444 | 运行时     | 现代 JavaScript/TypeScript 运行时 |
+|  4  | [tauri](https://github.com/tauri-apps/tauri)                          | 104,618 | 桌面开发    | 用 Web 技术构建桌面和移动应用            |
+|  5  | [uv](https://github.com/astral-sh/uv)                                 |  82,053 | 包管理     | 极速 Python 包和项目管理器            |
+|  6  | [zed](https://github.com/zed-industries/zed)                          |  77,905 | 编辑器     | 高性能多人协作代码编辑器                 |
+|  7  | [union](https://github.com/unionlabs/union)                           |  74,195 | 区块链     | 零知识证明跨链桥协议                   |
+|  8  | [codex](https://github.com/openai/codex)                              |  67,637 | AI 编程   | 终端轻量级 AI 编程代理                |
+|  9  | [alacritty](https://github.com/alacritty/alacritty)                   |  63,126 | 终端      | 跨平台 OpenGL 终端模拟器             |
+| 10  | [rustlings](https://github.com/rust-lang/rustlings)                   |  62,296 | 学习      | Rust 小练习，帮助上手读写代码            |
+| 11  | [sway](https://github.com/FuelLabs/sway)                              |  61,856 | 区块链     | 为区块链设计的智能合约语言                |
+| 12  | [ripgrep](https://github.com/BurntSushi/ripgrep)                      |  61,405 | CLI 工具  | 极速正则搜索工具（rg）                 |
+| 13  | [bat](https://github.com/sharkdp/bat)                                 |  57,822 | CLI 工具  | 带语法高亮的 cat 替代品               |
+| 14  | [vaultwarden](https://github.com/dani-garcia/vaultwarden)             |  57,325 | 安全      | 非官方 Bitwarden 兼容服务器          |
+| 15  | [fuel-core](https://github.com/FuelLabs/fuel-core)                    |  57,257 | 区块链     | Fuel v2 协议全节点实现              |
+| 16  | [meilisearch](https://github.com/meilisearch/meilisearch)             |  56,744 | 搜索引擎    | 闪电般快速的搜索引擎 API               |
+| 17  | [awesome-rust](https://github.com/rust-unofficial/awesome-rust)       |  56,368 | 资源列表    | Rust 精选代码和资源列表               |
+| 18  | [starship](https://github.com/starship/starship)                      |  55,329 | Shell   | 极速可定制的命令行提示符                 |
+| 19  | [ChatGPT](https://github.com/lencx/ChatGPT)                           |  54,366 | AI 应用   | ChatGPT 桌面客户端                |
+| 20  | [typst](https://github.com/typst/typst)                               |  52,278 | 排版系统    | 基于标记的现代排版系统                  |
+| 21  | [Pake](https://github.com/tw93/Pake)                                  |  47,005 | 桌面开发    | 一条命令将网页变桌面应用                 |
+| 22  | [ruff](https://github.com/astral-sh/ruff)                             |  46,698 | 开发工具    | 极速 Python Linter 和格式化工具      |
+| 23  | [bevy](https://github.com/bevyengine/bevy)                            |  45,286 | 游戏引擎    | 数据驱动的 Rust 游戏引擎              |
+| 24  | [helix](https://github.com/helix-editor/helix)                        |  43,639 | 编辑器     | 后现代模态文本编辑器                   |
+| 25  | [fuels-rs](https://github.com/FuelLabs/fuels-rs)                      |  43,344 | 区块链     | Fuel 网络 Rust SDK             |
+| 26  | [RuView](https://github.com/pi-lab/RuView)                            |  42,426 | 学术研究    | WiFi 信号实时人体姿态估计              |
+| 27  | [fd](https://github.com/sharkdp/fd)                                   |  42,190 | CLI 工具  | 简单快速的 find 替代品               |
+| 28  | [hyperswitch](https://github.com/juspay/hyperswitch)                  |  41,777 | 支付      | 开源支付交换机                      |
+| 29  | [nushell](https://github.com/nushell/nushell)                         |  38,851 | Shell   | 结构化数据的新型 Shell               |
+| 30  | [lapce](https://github.com/lapce/lapce)                               |  38,184 | 编辑器     | 闪电般快速的代码编辑器                  |
+| 31  | [polars](https://github.com/pola-rs/polars)                           |  37,852 | 数据处理    | 极速 DataFrame 查询引擎            |
+| 32  | [spacedrive](https://github.com/spacedriveapp/spacedrive)             |  37,494 | 文件管理    | 开源跨平台分布式文件管理器                |
+| 33  | [servo](https://github.com/servo/servo)                               |  36,120 | 浏览器引擎   | 高性能 Web 引擎                   |
+| 34  | [dioxus](https://github.com/DioxusLabs/dioxus)                        |  35,455 | 全栈框架    | Web、桌面和移动全栈应用框架              |
+| 35  | [yazi](https://github.com/sxyazi/yazi)                                |  35,301 | 文件管理    | 极速终端文件管理器                    |
+| 36  | [zoxide](https://github.com/ajeetdsouza/zoxide)                       |  34,928 | CLI 工具  | 更智能的 cd 命令                   |
+| 37  | [goose](https://github.com/block/goose)                               |  33,581 | AI 编程   | 开源可扩展 AI 编程代理                |
+| 38  | [cc-switch](https://github.com/anthropics/cc-switch)                  |  33,527 | 开发工具    | Claude Code / Codex 等多账户切换工具 |
+| 39  | [swc](https://github.com/swc-project/swc)                             |  33,323 | 编译工具    | Rust 驱动的 Web 编译平台            |
+| 40  | [firecracker](https://github.com/firecracker-microvm/firecracker)     |  33,298 | 虚拟化     | 安全极速的 Serverless 微型 VM       |
+| 41  | [sniffnet](https://github.com/GyulyVGC/sniffnet)                      |  33,085 | 网络监控    | 舒适地监控你的网络流量                  |
+| 42  | [tabby](https://github.com/TabbyML/tabby)                             |  33,053 | AI 编程   | 自托管 AI 编程助手                  |
+| 43  | [fish-shell](https://github.com/fish-shell/fish-shell)                |  32,971 | Shell   | 用户友好的命令行 Shell               |
+| 44  | [comprehensive-rust](https://github.com/google/comprehensive-rust)    |  32,784 | 学习      | Google Android 团队使用的 Rust 课程 |
+| 45  | [yew](https://github.com/yewstack/yew)                                |  32,495 | Web 框架  | Rust + WebAssembly 前端框架      |
+| 46  | [just](https://github.com/casey/just)                                 |  32,371 | 构建工具    | 简单好用的命令运行器                   |
+| 47  | [linera-protocol](https://github.com/linera-io/linera-protocol)       |  32,156 | 区块链     | Linera 协议主仓库                 |
+| 48  | [surrealdb](https://github.com/surrealdb/surrealdb)                   |  31,669 | 数据库     | 分布式文档图数据库                    |
+| 49  | [tokio](https://github.com/tokio-rs/tokio)                            |  31,500 | 异步运行时   | Rust 异步编程运行时                 |
+| 50  | [influxdb](https://github.com/influxdata/influxdb)                    |  31,381 | 数据库     | 可扩展的时序数据库                    |
+| 51  | [zellij](https://github.com/zellij-org/zellij)                        |  30,424 | 终端      | 功能齐全的终端工作区                   |
+| 52  | [czkawka](https://github.com/qarmin/czkawka)                          |  30,200 | 系统工具    | 多功能重复文件查找工具                  |
+| 53  | [rust-course](https://github.com/sunface/rust-course)                 |  30,155 | 学习      | Rust 语言圣经（中文）                |
+| 54  | [turborepo](https://github.com/vercel/turborepo)                      |  30,060 | 构建工具    | JS/TS 高性能构建系统                |
+| 55  | [iced](https://github.com/iced-rs/iced)                               |  29,966 | GUI     | 受 Elm 启发的跨平台 GUI 库           |
+| 56  | [qdrant](https://github.com/qdrant/qdrant)                            |  29,853 | 向量数据库   | 高性能 AI 向量数据库                 |
+| 57  | [delta](https://github.com/dandavison/delta)                          |  29,669 | Git 工具  | Git diff 语法高亮分页器             |
+| 58  | [atuin](https://github.com/atuinsh/atuin)                             |  28,829 | Shell   | 让 Shell 历史变得神奇               |
+| 59  | [zeroclaw](https://github.com/zeroclaw/zeroclaw)                      |  28,796 | AI 助手   | 快速小巧的 AI 个人助理基础设施            |
+| 60  | [egui](https://github.com/emilk/egui)                                 |  28,519 | GUI     | 即时模式 GUI 库                   |
+| 61  | [hyperfine](https://github.com/sharkdp/hyperfine)                     |  27,759 | CLI 工具  | 命令行基准测试工具                    |
+| 62  | [jj](https://github.com/jj-vcs/jj)                                    |  27,305 | 版本控制    | Git 兼容的版本控制系统                |
+| 63  | [Antigravity-Manager](https://github.com/nicepkg/Antigravity-Manager) |  27,196 | 开发工具    | AI 编程代理账户管理器                 |
+| 64  | [anki](https://github.com/ankitects/anki)                             |  27,051 | 教育      | 智能间隔重复记忆卡片                   |
+| 65  | [chroma](https://github.com/chroma-core/chroma)                       |  26,826 | AI 数据库  | AI 数据基础设施                    |
+| 66  | [pingora](https://github.com/cloudflare/pingora)                      |  26,298 | 网络服务    | Cloudflare 开源的网络服务库          |
+| 67  | [mise](https://github.com/jdx/mise)                                   |  26,073 | 开发工具    | 开发工具版本管理器                    |
+| 68  | [Rocket](https://github.com/SergioBenitez/Rocket)                     |  25,702 | Web 框架  | Rust Web 框架                  |
+| 69  | [fhevm](https://github.com/zama-ai/fhevm)                             |  25,620 | 区块链     | 全同态加密 + 区块链框架                |
+| 70  | [Rust](https://github.com/TheAlgorithms/Rust)                         |  25,601 | 学习      | 常见算法的 Rust 实现                |
+| 71  | [axum](https://github.com/tokio-rs/axum)                              |  25,415 | Web 框架  | 模块化 HTTP Web 框架              |
+| 72  | [wezterm](https://github.com/wezterm/wezterm)                         |  25,135 | 终端      | GPU 加速跨平台终端模拟器               |
+| 73  | [agent-browser](https://github.com/nicepkg/agent-browser)             |  24,903 | AI 工具   | AI 代理浏览器自动化 CLI              |
+| 74  | [Graphite](https://github.com/GraphiteEditor/Graphite)                |  24,880 | 图形设计    | 开源 2D 图形设计工具                 |
+| 75  | [difftastic](https://github.com/Wilfred/difftastic)                   |  24,769 | Diff 工具 | 理解语法的结构化 diff                |
+| 76  | [fnm](https://github.com/Schniz/fnm)                                  |  24,644 | 版本管理    | 快速 Node.js 版本管理器             |
+| 77  | [actix-web](https://github.com/actix/actix-web)                       |  24,507 | Web 框架  | 强大极速的 Web 框架                 |
+| 78  | [exa](https://github.com/ogham/exa)                                   |  24,414 | CLI 工具  | 现代 ls 替代品                    |
+| 79  | [tree-sitter](https://github.com/tree-sitter/tree-sitter)             |  24,356 | 解析器     | 增量式编程语言解析系统                  |
+| 80  | [SpacetimeDB](https://github.com/clockworklabs/SpacetimeDB)           |  24,198 | 数据库     | 实时多人应用数据库                    |
+| 81  | [biome](https://github.com/biomejs/biome)                             |  24,171 | 开发工具    | Web 项目格式化和 Lint 工具链          |
+| 82  | [vibe-kanban](https://github.com/nicepkg/vibe-kanban)                 |  23,812 | AI 编程   | 提升 AI 编程代理效率的看板              |
+| 83  | [rustfs](https://github.com/rustfs/rustfs)                            |  23,780 | 存储      | S3 兼容高性能对象存储                 |
+| 84  | [tools](https://github.com/rome/tools)                                |  23,486 | 开发工具    | JS/TS/Web 统一开发工具             |
+| 85  | [coreutils](https://github.com/uutils/coreutils)                      |  22,963 | 系统工具    | GNU coreutils 的 Rust 重写      |
+| 86  | [cli](https://github.com/nicepkg/gpt-runner)                          |  22,556 | CLI 工具  | Google Workspace 命令行工具       |
+| 87  | [flow](https://github.com/nicepkg/flow)                               |  22,211 | 开发工具    | JavaScript 静态类型增强            |
+| 88  | [slint](https://github.com/slint-ui/slint)                            |  22,087 | GUI     | 声明式跨平台 GUI 工具包               |
+| 89  | [RustPython](https://github.com/RustPython/RustPython)                |  21,915 | 解释器     | 用 Rust 编写的 Python 解释器        |
+| 90  | [niri](https://github.com/YaLTeR/niri)                                |  21,826 | 窗口管理    | 滚动平铺 Wayland 合成器             |
+| 91  | [gitui](https://github.com/extrawurst/gitui)                          |  21,626 | Git 工具  | 极速终端 Git UI                  |
+| 92  | [vector](https://github.com/vectordotdev/vector)                      |  21,551 | 数据管道    | 高性能可观测数据管道                   |
+| 93  | [nautilus_trader](https://github.com/nautechsystems/nautilus_trader)  |  21,432 | 量化交易    | 生产级 Rust 原生交易引擎              |
+| 94  | [mdBook](https://github.com/rust-lang/mdBook)                         |  21,394 | 文档      | Markdown 生成在线书籍              |
+| 95  | [neon](https://github.com/neondatabase/neon)                          |  21,329 | 数据库     | Serverless Postgres，支持自动扩缩容  |
+| 96  | [gleam](https://github.com/gleam-lang/gleam)                          |  21,297 | 编程语言    | 类型安全的系统构建语言                  |
+| 97  | [sonic](https://github.com/valeriansaliou/sonic)                      |  21,172 | 搜索引擎    | 轻量级无模式搜索后端                   |
+| 98  | [flow](https://github.com/nicepkg/flow)                               |  21,156 | 开发工具    | 项目加速工具集                      |
+| 99  | [eza](https://github.com/eza-community/eza)                           |  20,815 | CLI 工具  | 现代 ls 替代品（exa 维继）            |
+| 100 | [wasmer](https://github.com/wasmerio/wasmer)                          |  20,535 | 运行时     | 基于 WebAssembly 的轻量级容器        |
 
 ---
 
