@@ -21,11 +21,11 @@ description: 按"高频使用+效果显著+场景通用"标准，从 200+ Claude
 
 ## 三个梯队总览
 
-| 梯队 | 定位 | 包含 Skills | 一句话总结 |
-|:---|:---|:---|:---|
-| 🟢 基础能力层 | 打通浏览器操作与文档处理 | Agent Browser、Superpowers、PDF Processing、Tavily Search | 没有 = 手脚被绑 |
-| 🟡 效率倍增层 | 解决前端设计、API 幻觉、调试流程等痛点 | Frontend Design、Context7、Systematic Debugging、Simplify、TDD Workflow、Frontend Slides | 有了 = 效率翻倍 |
-| 🔴 专业场景层 | 面向文档生成与深度调研 | DOCX、GPT Researcher、Shannon Security、Firecrawl | 按需安装 = 如虎添翼 |
+| 梯队       | 定位                    | 包含 Skills                                                                           | 一句话总结       |
+| :------- | :-------------------- | :---------------------------------------------------------------------------------- | :---------- |
+| 🟢 基础能力层 | 打通浏览器操作与文档处理          | Agent Browser、Superpowers、PDF Processing、Tavily Search                              | 没有 = 手脚被绑   |
+| 🟡 效率倍增层 | 解决前端设计、API 幻觉、调试流程等痛点 | Frontend Design、Context7、Systematic Debugging、Simplify、TDD Workflow、Frontend Slides | 有了 = 效率翻倍   |
+| 🔴 专业场景层 | 面向文档生成与深度调研           | DOCX、GPT Researcher、Shannon Security、Firecrawl                                      | 按需安装 = 如虎添翼 |
 
 ---
 
