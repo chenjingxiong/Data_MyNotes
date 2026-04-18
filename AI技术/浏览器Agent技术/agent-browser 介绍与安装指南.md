@@ -2,6 +2,9 @@
 
 > 官方仓库：https://github.com/vercel-labs/agent-browser
 
+> [!abstract] 快速导航
+> 📖 **完整指南**：[[AI技术/浏览器Agent技术/Agent-Browser 完全指南]] — 包含架构设计、全部命令详解、实战场景及与 Playwright/browser-use/Steel 等方案的详细对比
+
 ## 项目简介
 
 **agent-browser** 是由 Vercel Labs 开发的一款专为 AI 智能体设计的**无头浏览器自动化 CLI 工具**。它采用原生 Rust 构建，提供了高性能的浏览器控制能力，是 Claude、OpenClaw 以及其他 AI 工具进行网页自动化操作的理想选择。

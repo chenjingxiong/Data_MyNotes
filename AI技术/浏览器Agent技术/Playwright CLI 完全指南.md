@@ -1018,6 +1018,7 @@ npx playwright test --headed
 - [Playwright MCP Server](https://github.com/anthropics/mcp-playwright)
 - [[AI技术/ClaudeCode/ClaudeCode浏览器自动化指南]] — Chrome DevTools MCP 配置指南
 - [[AI技术/浏览器Agent技术/多台机器浏览器同步登录状态指南]] — 多设备 Cookie 同步方案
+- [[AI技术/浏览器Agent技术/Agent-Browser 完全指南]] — agent-browser 详细指南及与 Playwright 对比
 
 ---
 
