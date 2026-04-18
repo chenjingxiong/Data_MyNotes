@@ -1,6 +1,6 @@
 # Claude Code Web-UI 详细指南
 
-> **更新日期**：2026-04-13
+> **更新日期**：2026-04-18
 > **适用版本**：Claude Code 最新版
 > **官方文档**：https://docs.anthropic.com/en/docs/claude-code/overview
 
@@ -20,6 +20,7 @@
 - [高级用法](#高级用法)
 - [常用快捷键](#常用快捷键)
 - [最佳实践](#最佳实践)
+- [CloudCLI UI — 开源第三方 Web 界面](#cloudcli-ui--开源第三方-web-界面)
 - [故障排查](#故障排查)
 - [相关资源](#相关资源)
 
@@ -641,6 +642,140 @@ claude --web --remote https://github.com/user/repo
 
 ---
 
+## CloudCLI UI — 开源第三方 Web 界面
+
+> **项目地址**：https://github.com/siteboon/claudecodeui
+> **官方文档**：https://cloudcli.ai/docs
+> **在线云服务**：https://cloudcli.ai
+> **许可证**：AGPL-3.0-or-later
+
+### 什么是 CloudCLI UI
+
+CloudCLI UI（原名 Claude Code UI）是一个**开源**的第三方 Web 界面，不仅支持 **Claude Code**，还同时支持 **Cursor CLI**、**OpenAI Codex** 和 **Gemini CLI**。它提供了桌面端和移动端的响应式界面，让你可以在任何设备上查看和管理你的 AI 编程助手会话。
+
+### 核心功能
+
+| 功能 | 说明 |
+|------|------|
+| **响应式设计** | 桌面、平板、手机均可使用，支持触控操作 |
+| **交互式聊天界面** | 内置聊天界面与 AI Agent 无缝交互 |
+| **集成 Shell 终端** | 直接通过内置终端访问 CLI |
+| **文件浏览器** | 交互式文件树，支持语法高亮和实时编辑 |
+| **Git 浏览器** | 查看、暂存、提交变更，切换分支 |
+| **会话管理** | 恢复会话、管理多个会话、查看历史 |
+| **插件系统** | 扩展自定义标签页、后端服务和集成 |
+| **TaskMaster AI 集成** | 可选的 AI 项目管理、PRD 解析、工作流自动化 |
+| **多模型兼容** | 支持 Claude、GPT、Gemini 模型系列 |
+
+### 安装方式对比
+
+| 方式 | 命令 | 适用场景 |
+|------|------|---------|
+| **npx 即用** | `npx @cloudcli-ai/cloudcli` | 快速试用，无需全局安装 |
+| **全局安装** | `npm install -g @cloudcli-ai/cloudcli` 然后 `cloudcli` | 日常使用 |
+| **Docker 沙箱** | `npx @cloudcli-ai/cloudcli@latest sandbox ~/project` | 隔离环境运行 Agent |
+| **CloudCLI Cloud** | 访问 https://cloudcli.ai | 无需本地部署，云端托管 |
+
+> ⚠️ 使用 npx 方式需要 **Node.js v22+**。
+
+### 快速开始
+
+#### 方式一：本地运行（推荐）
+
+```bash
+# 方式 1：使用 npx 直接运行（无需安装）
+npx @cloudcli-ai/cloudcli
+
+# 方式 2：全局安装后运行
+npm install -g @cloudcli-ai/cloudcli
+cloudcli
+```
+
+启动后打开浏览器访问 **http://localhost:3001**，它会**自动发现**你本地的所有 Claude Code 会话。
+
+#### 方式二：Docker 沙箱（实验性）
+
+在隔离的沙箱环境中运行 Agent，提供虚拟机级别的隔离：
+
+```bash
+# 需要先安装 Docker 的 sbx CLI
+npx @cloudcli-ai/cloudcli@latest sandbox ~/my-project
+```
+
+支持 Claude Code、Codex 和 Gemini CLI。
+
+#### 方式三：CloudCLI Cloud（云端托管）
+
+访问 https://cloudcli.ai 注册使用，无需本地配置，支持从任何设备访问。
+
+### 三种部署方式对比
+
+| | **本地运行 (npm)** | **Docker 沙箱** | **CloudCLI Cloud** |
+|---|---|---|---|
+| **最佳场景** | 本地 Agent 会话 | 隔离的 Agent 环境 | 团队云端协作 |
+| **访问方式** | 浏览器 `[ip]:port` | 浏览器 `localhost:port` | 浏览器 / API / IDE |
+| **设置难度** | `npx` 一行命令 | 需 Docker 环境 | 无需设置 |
+| **隔离级别** | 宿主机运行 | 虚拟机级隔离 | 完整云端隔离 |
+| **手机访问** | 同网络浏览器 | 同网络浏览器 | 任何设备 |
+| **支持的 Agent** | Claude Code / Cursor CLI / Codex / Gemini CLI | Claude Code / Codex / Gemini CLI | Claude Code / Cursor CLI / Codex / Gemini CLI |
+| **文件浏览器** | ✅ | ✅ | ✅ |
+| **Git 集成** | ✅ | ✅ | ✅ |
+| **REST API** | ✅ | ✅ | ✅ |
+| **团队共享** | ❌ | ❌ | ✅ |
+| **费用** | 免费开源 | 免费开源 | $7/月起 |
+
+> 💡 所有方式都使用你自己的 AI 订阅（Claude、Cursor 等），CloudCLI 只提供环境。
+
+### 安全与工具配置
+
+CloudCLI UI 的安全策略：**所有 Claude Code 工具默认禁用**，防止自动执行潜在危险操作。
+
+**启用工具步骤**：
+1. 点击侧边栏的齿轮图标打开 **Tools Settings**
+2. 选择性启用你需要的工具
+3. 设置会自动保存到本地
+
+> 📌 建议：先启用基础工具，按需逐步添加。
+
+### 插件系统
+
+CloudCLI 支持通过插件扩展功能：
+
+| 插件 | 功能 |
+|------|------|
+| **[Project Stats](https://github.com/cloudcli-ai/cloudcli-plugin-starter)** | 显示文件数量、代码行数、文件类型分布等 |
+| **[Web Terminal](https://github.com/cloudcli-ai/cloudcli-plugin-terminal)** | 完整的 xterm.js 终端，支持多标签 |
+
+你也可以基于 [Plugin Starter Template](https://github.com/cloudcli-ai/cloudcli-plugin-starter) 开发自定义插件。
+
+### 与 Claude Code 官方 Web-UI 的区别
+
+| 特性 | **Claude Code 官方 Web-UI** | **CloudCLI UI** |
+|------|---------------------------|----------------|
+| **来源** | Anthropic 官方 | 社区开源项目 |
+| **支持 Agent** | 仅 Claude Code | Claude Code / Cursor CLI / Codex / Gemini CLI |
+| **移动端** | 有限支持 | 原生响应式设计 |
+| **文件浏览器** | ✅ | ✅（语法高亮 + 实时编辑） |
+| **Git 集成** | 通过 Claude 操作 | 内置 Git 浏览器界面 |
+| **插件系统** | ❌ | ✅ |
+| **Docker 沙箱** | ❌ | ✅（实验性） |
+| **云端托管** | claude.ai/code | cloudcli.ai |
+| **配置同步** | 独立 | 共享 `~/.claude` 配置 |
+| **费用** | 需要 Claude 订阅 | 开源免费（云服务另计） |
+
+### 常见问题
+
+**Q: 会影响本地 Claude Code 配置吗？**
+是的，CloudCLI UI 直接读写 `~/.claude` 配置。在 UI 中添加的 MCP 服务器会立即在 Claude Code 中生效，反之亦然。
+
+**Q: 可以在手机上使用吗？**
+可以。本地运行时在同网络浏览器打开 `[yourip]:port`；使用 CloudCLI Cloud 则可从任何设备访问。
+
+**Q: 需要额外的 AI 订阅吗？**
+不需要额外订阅 CloudCLI，但你需要有自己的 Claude/Cursor/Codex/Gemini 订阅。
+
+---
+
 ## 故障排查
 
 ### 常见问题
@@ -731,8 +866,16 @@ claude --web --remote https://github.com/user/repo
 - **GitHub Discussions**：Claude Code 仓库的讨论区
 - **Reddit**：r/ClaudeAI 社区
 
+### 第三方工具
+
+- **CloudCLI UI**：https://github.com/siteboon/claudecodeui — 开源多 Agent Web 界面（支持 Claude Code / Cursor CLI / Codex / Gemini CLI）
+- **CloudCLI Cloud**：https://cloudcli.ai — CloudCLI 的云端托管版本
+- **CloudCLI 文档**：https://cloudcli.ai/docs — 完整安装、配置和故障排查文档
+- **CloudCLI Discord**：https://discord.gg/buxwujPNRE — CloudCLI 社区支持
+
 ---
 
 > 📝 **更新日志**
 >
+> - 2026-04-18：新增 CloudCLI UI（siteboon/claudecodeui）开源第三方 Web 界面完整指南
 > - 2026-04-13：初始版本，覆盖 Web-UI 核心功能与使用指南
