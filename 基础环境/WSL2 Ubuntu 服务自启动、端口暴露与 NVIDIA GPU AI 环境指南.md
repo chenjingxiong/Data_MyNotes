@@ -22,7 +22,9 @@ date: 2026-04-18
 - [[#一、服务自启动 — 启用 systemd]]
 - [[#二、端口暴露 — 让局域网访问 WSL2 服务]]
 - [[#三、NVIDIA GPU AI 环境搭建]]
-- [[#四、常见问题与排查]]
+- [[#四、在 1Panel 部署 vLLM 运行 Qwen3-30B-A3B]]
+- [[#五、常见问题与排查]]
+- [[#六、完整配置速查]]
 
 ---
 
@@ -224,13 +226,32 @@ New-NetFirewallRule -DisplayName "WSL2 Dev Ports" -Direction Inbound -LocalPort 
 
 或者通过 **Hyper-V 防火墙** 配置（更底层的方式）：
 
+> [!warning] 需要管理员权限 + Hyper-V Administrators 组
+> 此命令需要 **以管理员身份运行 PowerShell**，且当前用户必须在 **Hyper-V Administrators** 组中。
+> 如果仍然报"拒绝访问"，请先执行下面的权限配置步骤。
+
 ```powershell
+# ⚠️ 必须以管理员身份运行 PowerShell（右键 → 以管理员身份运行）
+
+# 如果报"拒绝访问"，先将当前用户加入 Hyper-V Administrators 组
+# 方法1：命令行（替换为你的 Windows 用户名）
+Add-LocalGroupMember -Group "Hyper-V Administrators" -Member "你的Windows用户名"
+
+# 方法2：通过图形界面
+# 运行 lusrmgr.msc → 组 → Hyper-V Administrators → 添加你的用户
+
+# 添加后需要注销并重新登录，然后再执行以下命令：
+
 # 允许 WSL 所有入站连接（开发环境可用，生产环境慎用）
 Set-NetFirewallHyperVVMSetting -Name '{40E0AC32-46A5-438A-A0B2-2B479E8F2E90}' -DefaultInboundAction Allow
 
 # 或者只允许特定端口
-Set-NetFirewallHyperVRule -Name "WSL" -Direction Inbound -Action Allow -LocalPorts 8080 -Protocol TCP
+New-NetFirewallHyperVRule -Name "WSL-8080" -DisplayName "WSL2 Port 8080" -Direction Inbound -Action Allow -LocalPorts 8080 -Protocol TCP -VMCreatorId '{40E0AC32-46A5-438A-A0B2-2B479E8F2E90}'
 ```
+
+> [!tip] 如果上面的 Hyper-V 防火墙命令始终无法执行
+> 不用纠结，直接使用上面的 `New-NetFirewallRule` 命令（普通 Windows 防火墙规则）即可，
+> 在镜像网络模式下通常已经足够让局域网访问 WSL2 的服务。
 
 ### 2.3 方案 B：NAT 模式 + 端口转发（经典方案）
 
@@ -391,6 +412,27 @@ nvidia-smi
 
 如果 `nvidia-smi` 无法运行，说明驱动或 WSL 配置有问题。
 
+**第一步：确认 nvidia-smi 的实际路径**
+
+```bash
+which nvidia-smi
+# 大概率输出: /usr/lib/wsl/lib/nvidia-smi
+```
+
+**第二步：创建软链接（最简单有效）**
+
+```bash
+sudo ln -s /usr/lib/wsl/lib/nvidia-smi /usr/bin/nvidia-smi
+```
+
+**第三步：重启 1Panel 服务**
+
+```bash
+sudo systemctl restart 1panel
+```
+
+然后刷新 1Panel 的 GPU 面板，应该就能检测到了。
+
 ### 3.5 步骤 3：安装 CUDA Toolkit（WSL 版）
 
 ```bash
@@ -428,17 +470,78 @@ source ~/.bashrc
 nvcc --version
 ```
 
-### 3.6 步骤 4：安装 cuDNN
+### 3.6 步骤 4：安装 cuDNN（可选）
+
+> [!important] 大多数情况下不需要单独安装 cuDNN
+> - **PyTorch**：pip 安装时已自带 cuDNN，无需单独安装
+> - **vLLM Docker**：Docker 镜像内已包含 cuDNN
+> - **TensorFlow**：pip 版本自带 cuDNN
+>
+> **只有**在你需要从源码编译某些项目时，才需要手动安装 cuDNN。
+
+#### 方案 A：使用 pip 安装（推荐，最简单）
 
 ```bash
-# 通过 apt 安装 cuDNN（需要 CUDA keyring 已配置）
-sudo apt-get install -y cudnn
+# nvidia-cudnn-cu12 包会安装到 Python 环境中
+pip install nvidia-cudnn-cu12
 
-# 或者安装特定版本
-# sudo apt-get install -y cudnn=9.6.0.*-1+cuda12.6
+# 然后设置环境变量让系统找到它
+# 添加到 ~/.bashrc
+echo 'export LD_LIBRARY_PATH=$(python -c "import nvidia.cudnn; print(nvidia.cudnn.__path__[0])")/lib:$LD_LIBRARY_PATH' >> ~/.bashrc
+source ~/.bashrc
+```
 
-# 验证
-cat /usr/include/cudnn_version.h 2>/dev/null || dpkg -l | grep cudnn
+#### 方案 B：通过 apt 安装（需要编译 C++ 项目时）
+
+WSL 专用 CUDA 仓库中 cuDNN 包名不是 `cudnn`，需要先搜索可用包名：
+
+```bash
+# 先确保 CUDA keyring 已配置（步骤 3 中已做过）
+sudo apt-get update
+
+# 搜索可用的 cuDNN 包名
+apt-cache search cudnn | grep cuda
+
+# 根据搜索结果安装对应版本，常见包名：
+# CUDA 12.x: sudo apt-get install -y cudnn9-cuda-12
+# 或: sudo apt-get install -y libcudnn9-cuda-12
+# CUDA 11.x: sudo apt-get install -y cudnn-cuda-11
+```
+
+> [!warning] 如果 apt-cache 搜不到 cuDNN 包
+> WSL 专用仓库（`wsl-ubuntu`）可能不包含 cuDNN 包。此时可以改用普通 Ubuntu 仓库：
+> ```bash
+> # 临时添加 Ubuntu 24.04 CUDA 仓库
+> wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/cuda-keyring_1.1-1_all.deb
+> sudo dpkg -i cuda-keyring_1.1-1_all.deb
+> sudo apt-get update
+> apt-cache search cudnn | grep cuda
+> ```
+> 安装完 cuDNN 后建议移除该仓库，避免与 WSL 仓库冲突。
+
+#### 方案 C：使用 .tar.gz 手动安装
+
+从 [NVIDIA cuDNN 下载页](https://developer.nvidia.com/cudnn-downloads) 下载 Linux tarball：
+
+```bash
+# 解压到 CUDA 目录
+tar -xvf cudnn-linux-x86_64-9.x.x.x_cudaX.Y-archive.tar.xz
+sudo cp cudnn-*-archive/include/* /usr/local/cuda/include/
+sudo cp cudnn-*-archive/lib/* /usr/local/cuda/lib64/
+sudo chmod a+r /usr/local/cuda/include/cudnn* /usr/local/cuda/lib64/libcudnn*
+```
+
+#### 验证 cuDNN 安装
+
+```bash
+# 方法1：检查头文件
+ls /usr/local/cuda/include/cudnn*.h 2>/dev/null
+
+# 方法2：检查库文件
+ldconfig -p | grep cudnn
+
+# 方法3：通过 Python 验证（如果用 pip 安装）
+python -c "import nvidia.cudnn; print(nvidia.cudnn.__version__)"
 ```
 
 ### 3.7 步骤 5：搭建 AI 开发环境
@@ -522,7 +625,323 @@ streamlit run app.py --server.address 0.0.0.0 --server.port 8501
 
 ---
 
-## 四、常见问题与排查
+## 四、在 1Panel 部署 vLLM 运行 Qwen3-30B-A3B
+
+> [!note] 模型说明
+> **Qwen3-30B-A3B** 是通义千问 Qwen3 系列中的 MoE（混合专家）模型：
+> - 总参数量：**300 亿**（30B）
+> - 每次推理仅激活：**30 亿**（3B）
+> - FP16 精度显存需求：**约 60-65GB**
+> - AWQ 4-bit 量化后：**约 15-16GB**（纯权重），但 vLLM 还需要 KV 缓存空间
+> - 最低 vLLM 版本：**≥ 0.8.5**
+>
+> **16GB 显存**跑 Qwen3-30B-A3B-AWQ 非常紧张（权重几乎占满），建议优先考虑下方替代模型。
+
+### 4.1 显存需求与方案选择
+
+#### 如果你的显存 ≥ 24GB（RTX 3090/4090）
+
+| 方案 | 显存需求 | 说明 |
+|------|---------|------|
+| Qwen3-30B-A3B-AWQ (4-bit) | ~16-20GB | ✅ 推荐，质量损失极小 |
+| Qwen3-30B-A3B FP16 | ~60-65GB | 需要多卡或 A100 |
+
+#### 如果你的显存 = 16GB（RTX 4080 / RTX 4060 Ti 16GB 等）
+
+> [!warning] 16GB 显存模型选择
+> Qwen3-30B-A3B-AWQ 权重约 15-16GB，加上 KV 缓存和 CUDA 上下文会超出 16GB。
+> 推荐以下替代方案：
+
+| 推荐模型                  | 量化    | 权重大小  | 16GB 可行性 | 说明           |
+| --------------------- | ----- | ----- | -------- | ------------ |
+| **Qwen3-30B-A3B-AWQ** | 4-bit | ~15GB | ⚠️ 勉强可行  | 需极限优化（见下方配置） |
+| **Qwen3-14B-AWQ**     | 4-bit | ~8GB  | ✅ 轻松运行   | 质量优秀，推荐首选    |
+| **Qwen3-8B**          | FP16  | ~16GB | ⚠️ 勉强    | 无量化，上下文受限    |
+| **Qwen3-8B-AWQ**      | 4-bit | ~5GB  | ✅ 非常轻松   | 预留大量空间给长上下文  |
+| **Qwen3-4B**          | FP16  | ~8GB  | ✅ 轻松     | 小模型，速度快      |
+
+> **16GB 显卡推荐**：**Qwen3-14B-AWQ**（最佳性价比）或 **Qwen3-30B-A3B-AWQ**（极限模式，见 [[#4.5 16GB 显存极限运行 Qwen3-30B-A3B]]）
+
+### 4.2 前置条件
+
+#### （1）安装 NVIDIA Container Toolkit
+
+让 Docker 容器能访问宿主机 GPU：
+
+```bash
+# 添加 NVIDIA Container Toolkit 仓库
+curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | \
+  sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
+
+curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list | \
+  sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' | \
+  sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
+
+sudo apt-get update
+sudo apt-get install -y nvidia-container-toolkit
+
+# 配置 Docker runtime
+sudo nvidia-ctk runtime configure --runtime=docker
+sudo systemctl restart docker
+
+# 验证 Docker GPU 支持
+docker run --rm --gpus all ubuntu nvidia-smi
+```
+
+#### （2）确认 1Panel 已安装并运行
+
+```bash
+systemctl status 1panel
+```
+
+### 4.3 下载模型
+
+> 推荐在国内网络使用 ModelScope 下载，速度远快于 HuggingFace。
+> 根据你的显存大小选择对应模型（参考 [[#4.1 显存需求与方案选择]]）。
+
+```bash
+# 安装 modelscope
+pip install modelscope
+```
+
+#### 16GB 显卡推荐：Qwen3-14B-AWQ（~8GB，最佳性价比）
+
+```bash
+modelscope download --model Qwen/Qwen3-14B-AWQ \
+  --local_dir /opt/1panel/models/Qwen3-14B-AWQ
+```
+
+#### 24GB+ 显卡推荐：Qwen3-30B-A3B-AWQ（~15GB，最强质量）
+
+```bash
+modelscope download --model Qwen/Qwen3-30B-A3B-AWQ \
+  --local_dir /opt/1panel/models/Qwen3-30B-A3B-AWQ
+```
+
+#### 其他选项
+
+```bash
+# Qwen3-8B-AWQ（~5GB，16GB 显卡可跑长上下文）
+modelscope download --model Qwen/Qwen3-8B-AWQ \
+  --local_dir /opt/1panel/models/Qwen3-8B-AWQ
+
+# FP16 原版（需要 60GB+ 显存）
+modelscope download --model Qwen/Qwen3-30B-A3B \
+  --local_dir /opt/1panel/models/Qwen3-30B-A3B
+```
+
+#### 通过 HuggingFace 下载（需要代理/海外网络）
+
+```bash
+pip install huggingface_hub
+
+# 下载 AWQ 量化版
+huggingface-cli download Qwen/Qwen3-14B-AWQ \
+  --local-dir /opt/1panel/models/Qwen3-14B-AWQ
+```
+
+> [!tip] 模型存放路径
+> 建议统一放在 `/opt/1panel/models/` 下，方便 1Panel 应用和 Docker 挂载访问。
+
+### 4.4 通过 1Panel 编排（Compose）部署（推荐，免费）
+
+> 1Panel 的 AI 模型管理功能需要专业版，**社区版用户**可以直接使用 **容器 → 编排** 功能部署，完全免费且功能等价。
+
+**步骤 1：在 1Panel 中创建 Compose**
+
+1. 打开 **1Panel** → **容器** → **编排**
+2. 点击 **创建编排**
+3. 输入名称：`vllm-qwen3`
+
+**步骤 2：编写 docker-compose.yml**
+
+> [!important] 镜像版本必须匹配你的 CUDA 版本
+> 先在 WSL 中运行 `nvidia-smi` 查看右上角的 `CUDA Version`，然后对照下表选择镜像标签：
+>
+> | 你的 CUDA 版本 | 推荐镜像标签 | 说明 |
+> |---------------|-------------|------|
+> | CUDA 12.9+ | `vllm/vllm-openai:latest` | 最新版 |
+> | CUDA 12.6 | `vllm/vllm-openai:v0.8.5` | 稳定版 |
+> | CUDA 12.4 | `vllm/vllm-openai:v0.7.3` | 旧稳定版 |
+> | CUDA 12.1 | `vllm/vllm-openai:v0.6.6.post1` | 更旧版本 |
+>
+> **不要用 `latest`，除非你的驱动足够新。** 查看所有可用标签：https://hub.docker.com/r/vllm/vllm-openai/tags
+
+```yaml
+services:
+  vllm-qwen3:
+    image: vllm/vllm-openai:v0.8.5    # ← 根据你的 CUDA 版本修改（见上方表格）
+    container_name: vllm-qwen3
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - /opt/1panel/models:/models    # 挂载模型目录
+    environment:
+      - MODEL_NAME=Qwen3-30B-A3B
+    command: >
+      --model /models/Qwen3-30B-A3B-AWQ
+      --served-model-name Qwen3-30B-A3B
+      --host 0.0.0.0
+      --port 8000
+      --max-model-len 8192
+      --gpu-memory-utilization 0.90
+      --trust-remote-code
+      --quantization awq
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+```
+
+> [!warning] FP16 原版需要多卡并行时
+> 使用 FP16 原版模型（非 AWQ）时，需要增加 `--tensor-parallel-size` 参数：
+> ```yaml
+> command: >
+>   --model /models/Qwen3-30B-A3B
+>   --tensor-parallel-size 2
+>   --host 0.0.0.0
+>   --port 8000
+>   --gpu-memory-utilization 0.90
+>   --trust-remote-code
+> ```
+
+**步骤 3：启动服务**
+
+在 1Panel 编排页面点击 **启动**，或通过命令行：
+
+```bash
+cd /opt/1panel/docker/compose/vllm-qwen3
+docker compose up -d
+```
+
+### 4.6 验证部署
+
+```bash
+# 1. 检查容器是否运行
+docker ps | grep vllm
+
+# 2. 查看模型列表
+curl http://localhost:8000/v1/models
+
+# 3. 测试对话（OpenAI 兼容 API）
+curl http://localhost:8000/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "Qwen3-30B-A3B",
+    "messages": [
+      {"role": "user", "content": "你好，请介绍一下你自己"}
+    ],
+    "max_tokens": 256,
+    "temperature": 0.7
+  }'
+
+# 4. 测试流式输出
+curl http://localhost:8000/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "Qwen3-30B-A3B",
+    "messages": [
+      {"role": "user", "content": "用Python写一个快速排序"}
+    ],
+    "max_tokens": 512,
+    "stream": true
+  }'
+```
+
+成功返回 JSON 响应即表示部署完成。
+
+### 4.7 从 Python 调用
+
+```python
+from openai import OpenAI
+
+# 连接本地 vLLM 服务
+client = OpenAI(
+    base_url="http://localhost:8000/v1",
+    api_key="not-needed"  # vLLM 默认不需要 API key
+)
+
+# 发送对话
+response = client.chat.completions.create(
+    model="Qwen3-30B-A3B",
+    messages=[
+        {"role": "system", "content": "你是一个有帮助的AI助手。"},
+        {"role": "user", "content": "解释一下什么是MoE架构？"}
+    ],
+    max_tokens=512,
+    temperature=0.7
+)
+
+print(response.choices[0].message.content)
+```
+
+### 4.8 配合 Open WebUI 使用（可选）
+
+如果想要一个类似 ChatGPT 的 Web 界面，可以在 1Panel 应用商店安装 **Open WebUI**（或通过 Compose 部署），然后：
+
+1. 打开 Open WebUI → **设置** → **连接**
+2. 将 Ollama API 地址改为：`http://vllm-qwen3:8000/v1`（同 Docker 网络内）
+   - 如果不在同一网络：`http://你的主机IP:8000/v1`
+3. 模型名称填：`Qwen3-30B-A3B`
+
+Open WebUI 的 Compose 示例：
+
+```yaml
+services:
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: open-webui
+    restart: unless-stopped
+    ports:
+      - "3000:8080"
+    volumes:
+      - /opt/1panel/data/open-webui:/app/backend/data
+    environment:
+      - OPENAI_API_BASE_URL=http://vllm-qwen3:8000/v1
+      # 注意：需要将 vllm-qwen3 和 open-webui 放在同一个 Docker 网络中
+    depends_on:
+      - vllm-qwen3
+```
+
+### 4.9 性能优化参数参考
+
+| vLLM 参数 | 说明 | 推荐值 |
+|-----------|------|--------|
+| `--gpu-memory-utilization` | GPU 显存利用率 | `0.85-0.95` |
+| `--max-model-len` | 最大上下文长度 | `8192`（更长需更多显存） |
+| `--max-num-seqs` | 最大并发序列数 | `16-64` |
+| `--tensor-parallel-size` | 多卡并行数 | 单卡 `1`，双卡 `2` |
+| `--quantization` | 量化方式 | `awq`（AWQ 模型时） |
+| `--enforce-eager` | 禁用 CUDA Graph（节省显存） | 调试时加上 |
+| `--enable-prefix-caching` | 前缀缓存（加速重复 prompt） | 建议开启 |
+| `--enable-chunked-prefill` | 分块预填充（降低延迟） | 建议开启 |
+
+完整启动示例（AWQ + 性能优化）：
+
+```yaml
+command: >
+  --model /models/Qwen3-30B-A3B-AWQ
+  --served-model-name Qwen3-30B-A3B
+  --host 0.0.0.0
+  --port 8000
+  --quantization awq
+  --max-model-len 8192
+  --gpu-memory-utilization 0.90
+  --max-num-seqs 32
+  --enable-prefix-caching
+  --enable-chunked-prefill
+  --trust-remote-code
+```
+
+---
+
+## 五、常见问题与排查
+
+> 也包含之前在「三、NVIDIA GPU AI 环境搭建」中积累的排障经验。
 
 ### Q1：`nvidia-smi` 在 WSL 中不可用
 
@@ -623,9 +1042,107 @@ swap=8GB             # 交换空间大小
 localhostForwarding=true
 ```
 
+### Q7：vLLM 容器启动报错 "CUDA out of memory"
+
+```bash
+# 降低显存利用率
+--gpu-memory-utilization 0.80
+
+# 缩短最大上下文
+--max-model-len 4096
+
+# 禁用 CUDA Graph（额外节省约 1-2GB）
+--enforce-eager
+
+# 如果仍然不够，考虑换用更小的量化版或使用 GPTQ-Int4 模型
+```
+
+### Q8：vLLM 报错 "MoE kernels not available"
+
+Qwen3-30B-A3B 是 MoE 架构，需要 vLLM ≥ 0.8.5 并支持 MoE 内核：
+
+```bash
+# 检查 vLLM 版本（pip 安装时）
+pip show vllm
+
+# Docker 中拉取匹配你 CUDA 版本的镜像
+# 先用 nvidia-smi 查看你的 CUDA 版本，然后选择对应标签
+docker pull vllm/vllm-openai:v0.8.5    # CUDA 12.6
+```
+
+### Q9：Docker 容器内无法访问 GPU
+
+```bash
+# 1. 检查 NVIDIA Container Toolkit 是否安装
+nvidia-ctk --version
+
+# 2. 检查 Docker runtime 配置
+cat /etc/docker/daemon.json | grep nvidia
+
+# 应该有类似内容：
+# "runtimes": { "nvidia": { "path": "nvidia-container-runtime" } }
+
+# 3. 重新配置并重启
+sudo nvidia-ctk runtime configure --runtime=docker
+sudo systemctl restart docker
+
+# 4. 测试
+docker run --rm --gpus all ubuntu nvidia-smi
+```
+
+### Q10：1Panel 面板中 vLLM 服务显示异常
+
+```bash
+# 查看 vLLM 容器日志
+docker logs $(docker ps -a | grep vllm | awk '{print $1}') --tail 100
+
+# 常见原因：
+# 1. 模型路径挂载错误 → 检查 volumes 配置
+# 2. 端口被占用 → sudo lsof -i :8000
+# 3. GPU 未正确映射 → 检查 deploy.resources.reservations.devices 配置
+# 4. 模型文件不完整 → 重新下载模型
+
+# 重启容器
+docker restart <容器名>
+```
+
+### Q11：容器启动报错 "unsatisfied condition: cuda>=12.9"
+
+```
+nvidia-container-cli: requirement error: unsatisfied condition: cuda>=12.9,
+please update your driver to a newer version, or use an earlier cuda container
+```
+
+**原因**：Docker 镜像中的 CUDA 版本高于你的显卡驱动支持的版本。
+
+```bash
+# 1. 查看你的驱动支持的 CUDA 版本
+nvidia-smi
+# 右上角: CUDA Version: 12.x
+
+# 2. 选择匹配的镜像版本（不要用 latest）
+# CUDA 12.6 → vllm/vllm-openai:v0.8.5
+# CUDA 12.4 → vllm/vllm-openai:v0.7.3
+
+# 3. 更新 docker-compose.yml 中的 image 字段后重新创建
+docker compose down
+docker compose up -d
+```
+
+> [!tip] 驱动版本与 CUDA 版本对应关系
+> | NVIDIA 驱动版本 | 最高支持 CUDA |
+> |----------------|-------------|
+> | ≥ 560.x | CUDA 12.6 |
+> | ≥ 550.x | CUDA 12.4 |
+> | ≥ 535.x | CUDA 12.2 |
+> | ≥ 525.x | CUDA 12.0 |
+> | ≥ 520.x | CUDA 11.8 |
+>
+> 如果驱动太旧，也可以更新 Windows 端的 NVIDIA 驱动到最新版。
+
 ---
 
-## 五、完整配置速查
+## 六、完整配置速查
 
 ### `/etc/wsl.conf`（WSL 内部）
 
@@ -679,11 +1196,26 @@ systemctl is-enabled ssh             # enabled
 
 ## 参考资料
 
+### WSL2 基础
+
 - [Use systemd to manage Linux services with WSL — Microsoft Learn](https://learn.microsoft.com/en-us/windows/wsl/systemd)
 - [Accessing network applications with WSL — Microsoft Learn](https://learn.microsoft.com/en-us/windows/wsl/networking)
+- [Systemd support lands in WSL — Ubuntu Blog](https://ubuntu.com/blog/ubuntu-wsl-enable-systemd)
+
+### GPU / CUDA
+
 - [CUDA on WSL User Guide — NVIDIA Docs](https://docs.nvidia.com/cuda/wsl-user-guide/index.html)
 - [Enable NVIDIA CUDA on WSL 2 — Microsoft Learn](https://learn.microsoft.com/en-us/windows/ai/directml/gpu-cuda-in-wsl)
-- [Systemd support lands in WSL — Ubuntu Blog](https://ubuntu.com/blog/ubuntu-wsl-enable-systemd)
 - [Getting Started with CUDA on Ubuntu on WSL 2 — Ubuntu Blog](https://ubuntu.com/blog/getting-started-with-cuda-on-ubuntu-on-wsl-2)
 - [How to Set Up CUDA and WSL2 for Windows 11 — freeCodeCamp](https://www.freecodecamp.org/news/how-to-set-up-cuda-and-wsl2-for-windows-11-including-pytorch-and-tensorflow-gpu/)
 - [Install PyTorch on Windows, Linux and macOS in 2025 — Hugging Face](https://huggingface.co/blog/daya-shankar/pytorch-install-guide)
+
+### vLLM 与 Qwen3 部署
+
+- [1Panel vLLM 官方文档](https://1panel.cn/docs/v2/user_manual/ai/vllm/)
+- [1Panel GPU 监控文档](https://1panel.cn/docs/v1/user_manual/ai/gpu/)
+- [Qwen3-30B-A3B — ModelScope](https://modelscope.cn/models/Qwen/Qwen3-30B-A3B)
+- [vLLM Docker 部署 — vLLM 中文站](https://vllm.hyper.ai/docs/deployment/docker/)
+- [vLLM 官方 Docker 部署文档](https://docs.vllm.com.cn/en/latest/deployment/docker/)
+- [Docker Compose 编排 vLLM 多模型服务 — 知乎](https://zhuanlan.zhihu.com/p/1985432653625844472)
+- [vLLM 部署 Qwen3 方案 — 俊瑶先森](http://junyao.tech/posts/2a08b1ba.html)
