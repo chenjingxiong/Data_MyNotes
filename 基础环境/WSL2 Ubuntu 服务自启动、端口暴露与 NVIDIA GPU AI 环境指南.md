@@ -22,9 +22,10 @@ date: 2026-04-18
 - [[#一、服务自启动 — 启用 systemd]]
 - [[#二、端口暴露 — 让局域网访问 WSL2 服务]]
 - [[#三、NVIDIA GPU AI 环境搭建]]
-- [[#四、在 1Panel 部署 vLLM 运行 Qwen3-30B-A3B]]
+- [[#四、在 1Panel 部署 vLLM 运行 Qwen3]]
 - [[#五、常见问题与排查]]
 - [[#六、完整配置速查]]
+- [[#七、动态模型切换]]
 
 ---
 
@@ -54,6 +55,10 @@ systemd=true
 # 可选：设置默认用户
 [user]
 default=你的用户名
+
+[interop]
+enabled=true
+appendWindowsPath=true
 ```
 
 **步骤 2：重启 WSL**
@@ -213,18 +218,22 @@ ipconfig | findstr "IPv4"
 
 **步骤 4：配置 Windows 防火墙（局域网访问必需）**
 
-即使使用镜像模式，Windows 防火墙可能仍会阻止外部访问。需要添加入站规则：
+> [!important] 需要开放两层防火墙！
+> Windows 有 **两层** 防火墙会阻止局域网访问 WSL2 服务：
+> 1. **Windows Defender 防火墙** — 普通防火墙规则
+> 2. **Hyper-V 防火墙** — 专门控制 WSL2 虚拟机流量的独立防火墙层
+>
+> 只开放其中一层是不够的！如果遇到"localhost 能访问但局域网不能"的问题，详见 [[#Q12：localhost/127.0.0.1 可以访问，但局域网其他设备无法访问 WSL2 服务]]。
+
+**第 4a 步：普通防火墙规则**
 
 ```powershell
 # PowerShell（管理员）
-# 示例：开放 8080 端口
-New-NetFirewallRule -DisplayName "WSL2 Port 8080" -Direction Inbound -LocalPort 8080 -Protocol TCP -Action Allow
-
 # 示例：开放常用开发端口范围
 New-NetFirewallRule -DisplayName "WSL2 Dev Ports" -Direction Inbound -LocalPort 3000-9999 -Protocol TCP -Action Allow
 ```
 
-或者通过 **Hyper-V 防火墙** 配置（更底层的方式）：
+**第 4b 步：Hyper-V 防火墙（⭐ 关键！不开放这层局域网无法访问）**
 
 > [!warning] 需要管理员权限 + Hyper-V Administrators 组
 > 此命令需要 **以管理员身份运行 PowerShell**，且当前用户必须在 **Hyper-V Administrators** 组中。
@@ -249,9 +258,10 @@ Set-NetFirewallHyperVVMSetting -Name '{40E0AC32-46A5-438A-A0B2-2B479E8F2E90}' -D
 New-NetFirewallHyperVRule -Name "WSL-8080" -DisplayName "WSL2 Port 8080" -Direction Inbound -Action Allow -LocalPorts 8080 -Protocol TCP -VMCreatorId '{40E0AC32-46A5-438A-A0B2-2B479E8F2E90}'
 ```
 
-> [!tip] 如果上面的 Hyper-V 防火墙命令始终无法执行
-> 不用纠结，直接使用上面的 `New-NetFirewallRule` 命令（普通 Windows 防火墙规则）即可，
-> 在镜像网络模式下通常已经足够让局域网访问 WSL2 的服务。
+> [!tip] 如果 Hyper-V 防火墙命令始终无法执行
+> 确保你的 Windows 用户在 **Hyper-V Administrators** 组中（上面有说明），
+> 并且 **注销重新登录** 后再试。如果你使用的是 Windows 11 23H2+，
+> 也可以尝试在 `.wslconfig` 中添加 `firewall=true` 让 WSL 自动同步防火墙规则。
 
 ### 2.3 方案 B：NAT 模式 + 端口转发（经典方案）
 
@@ -334,6 +344,24 @@ python3 -m http.server 8080
 ```powershell
 # Windows 中检查端口监听状态
 netstat -an | findstr "8080"
+```
+
+
+### 检查网络配置文件类型
+
+```powershell
+# PowerShell（管理员）
+Get-NetConnectionProfile
+```
+
+如果看到 `NetworkCategory : Public`，公共网络配置文件默认阻止所有入站。改为专用：
+
+```powershell
+# 将网络改为"专用"（假设你的网卡名是 "以太网"）
+Set-NetConnectionProfile -InterfaceAlias "以太网" -NetworkCategory Private
+
+# 或者查看所有接口后指定
+Get-NetAdapter | Select-Object Name, Status
 ```
 
 ---
@@ -625,7 +653,7 @@ streamlit run app.py --server.address 0.0.0.0 --server.port 8501
 
 ---
 
-## 四、在 1Panel 部署 vLLM 运行 Qwen3-30B-A3B
+## 四、在 1Panel 部署 vLLM 运行 Qwen3
 
 > [!note] 模型说明
 > **Qwen3-30B-A3B** 是通义千问 Qwen3 系列中的 MoE（混合专家）模型：
@@ -778,10 +806,10 @@ services:
     volumes:
       - /opt/1panel/models:/models    # 挂载模型目录
     environment:
-      - MODEL_NAME=Qwen3-30B-A3B
+      - MODEL_NAME=Qwen3-14B
     command: >
-      --model /models/Qwen3-30B-A3B-AWQ
-      --served-model-name Qwen3-30B-A3B
+      --model /models/Qwen3-14B-AWQ
+      --served-model-name Qwen3-14B
       --host 0.0.0.0
       --port 8000
       --max-model-len 8192
@@ -828,10 +856,11 @@ docker ps | grep vllm
 curl http://localhost:8000/v1/models
 
 # 3. 测试对话（OpenAI 兼容 API）
+#    注意：model 名称需要与 docker-compose.yml 中的 --served-model-name 一致
 curl http://localhost:8000/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "Qwen3-30B-A3B",
+    "model": "Qwen3-14B",
     "messages": [
       {"role": "user", "content": "你好，请介绍一下你自己"}
     ],
@@ -843,7 +872,7 @@ curl http://localhost:8000/v1/chat/completions \
 curl http://localhost:8000/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "Qwen3-30B-A3B",
+    "model": "Qwen3-14B",
     "messages": [
       {"role": "user", "content": "用Python写一个快速排序"}
     ],
@@ -867,7 +896,7 @@ client = OpenAI(
 
 # 发送对话
 response = client.chat.completions.create(
-    model="Qwen3-30B-A3B",
+    model="Qwen3-14B",    # 需与 docker-compose.yml 中的 --served-model-name 一致
     messages=[
         {"role": "system", "content": "你是一个有帮助的AI助手。"},
         {"role": "user", "content": "解释一下什么是MoE架构？"}
@@ -881,17 +910,43 @@ print(response.choices[0].message.content)
 
 ### 4.8 配合 Open WebUI 使用（可选）
 
-如果想要一个类似 ChatGPT 的 Web 界面，可以在 1Panel 应用商店安装 **Open WebUI**（或通过 Compose 部署），然后：
+如果想要一个类似 ChatGPT 的 Web 界面，建议将 Open WebUI 和 vLLM 放在**同一个 Compose 编排**中，确保网络互通且数据持久化。
 
-1. 打开 Open WebUI → **设置** → **连接**
-2. 将 Ollama API 地址改为：`http://vllm-qwen3:8000/v1`（同 Docker 网络内）
-   - 如果不在同一网络：`http://你的主机IP:8000/v1`
-3. 模型名称填：`Qwen3-30B-A3B`
+> [!warning] 数据持久化关键
+> Open WebUI 的账号、对话历史、设置等数据存储在 `/app/backend/data` 目录。
+> **必须**通过 `volumes` 将该目录映射到 WSL2 宿主机，否则容器重建后数据全部丢失。
 
-Open WebUI 的 Compose 示例：
+**将以下内容合并到之前的 `docker-compose.yml` 中（同一个文件）：**
 
 ```yaml
 services:
+  # ===== vLLM 服务（之前已有的配置）=====
+  vllm-qwen3:
+    image: vllm/vllm-openai:v0.8.5
+    container_name: vllm-qwen3
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - /opt/1panel/models:/models
+    command: >
+      --model /models/Qwen3-14B-AWQ
+      --served-model-name Qwen3-14B
+      --host 0.0.0.0
+      --port 8000
+      --max-model-len 8192
+      --gpu-memory-utilization 0.90
+      --trust-remote-code
+      --quantization awq
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  # ===== Open WebUI（新增）=====
   open-webui:
     image: ghcr.io/open-webui/open-webui:main
     container_name: open-webui
@@ -899,33 +954,581 @@ services:
     ports:
       - "3000:8080"
     volumes:
-      - /opt/1panel/data/open-webui:/app/backend/data
+      - /opt/1panel/data/open-webui:/app/backend/data    # ← 关键：数据持久化
     environment:
+      # 连接 vLLM（同一 compose 内可直接用服务名）
       - OPENAI_API_BASE_URL=http://vllm-qwen3:8000/v1
-      # 注意：需要将 vllm-qwen3 和 open-webui 放在同一个 Docker 网络中
     depends_on:
       - vllm-qwen3
 ```
 
-### 4.9 性能优化参数参考
+> [!important] 数据不丢失的检查清单
+> 1. **volume 映射正确**：`/opt/1panel/data/open-webui:/app/backend/data` 必须存在
+> 2. **不要用 `docker compose down -v`**：`-v` 会删除 volume，用 `docker compose down` 即可
+> 3. **确认数据目录存在**：`ls -la /opt/1panel/data/open-webui/` 应能看到数据库文件
+> 4. **备份**（推荐）：定期拷贝该目录到 Windows 侧
+>    ```bash
+>    cp -r /opt/1panel/data/open-webui /mnt/c/Users/你的用户名/Desktop/open-webui-backup
+>    ```
 
-| vLLM 参数 | 说明 | 推荐值 |
-|-----------|------|--------|
-| `--gpu-memory-utilization` | GPU 显存利用率 | `0.85-0.95` |
-| `--max-model-len` | 最大上下文长度 | `8192`（更长需更多显存） |
-| `--max-num-seqs` | 最大并发序列数 | `16-64` |
-| `--tensor-parallel-size` | 多卡并行数 | 单卡 `1`，双卡 `2` |
-| `--quantization` | 量化方式 | `awq`（AWQ 模型时） |
-| `--enforce-eager` | 禁用 CUDA Graph（节省显存） | 调试时加上 |
-| `--enable-prefix-caching` | 前缀缓存（加速重复 prompt） | 建议开启 |
-| `--enable-chunked-prefill` | 分块预填充（降低延迟） | 建议开启 |
+部署完成后访问：`http://你的主机IP:3000`，首次打开需要注册管理员账号。
 
-完整启动示例（AWQ + 性能优化）：
+### 4.9 动态模型切换（按需加载不同模型）
+
+> [!note] 适用场景
+> 你有多个模型（如 Qwen3-14B、Qwen3-8B、Qwen3-30B-A3B），但显存只够同时运行一个。
+> 在 Open WebUI 中选择不同模型时，自动卸载旧模型、加载新模型。
+>
+> **原理**：vLLM **不支持运行时热切换模型架构**，但我们可以用一个轻量级 **代理服务（Proxy）** 拦截 Open WebUI 的请求，
+> 检测到模型变化后，自动停止旧容器、启动新容器加载目标模型，然后转发请求。
+
+#### 架构说明
+
+```
+┌───────────────┐     ┌───────────────────┐     ┌─────────────────────┐
+│  Open WebUI   │────▶│  vLLM Switcher    │────▶│  vLLM Container     │
+│  (port 3000)  │     │  Proxy (port 9000) │     │  (port 8000)        │
+│               │     │                   │     │  ┌───────────────┐  │
+│  用户选择模型   │     │  1. 拦截请求        │     │  │ Qwen3-14B    │  │
+│  → 发送请求     │     │  2. 检查模型名称    │     │  │ or Qwen3-8B  │  │
+│               │     │  3. 模型不同→切换    │     │  │ or 30B-A3B   │  │
+│               │◀────│  4. 转发请求/响应    │◀────│  └───────────────┘  │
+└───────────────┘     └───────────────────┘     └─────────────────────┘
+                           systemd 服务              Docker 容器
+                            (宿主机)               (按需启停)
+```
+
+**切换流程**：
+1. 用户在 Open WebUI 选择新模型（如从 Qwen3-14B 切换到 Qwen3-8B）
+2. Open WebUI 发送请求到 Proxy（端口 9000）
+3. Proxy 检测到模型变化 → `docker stop` 旧容器 → `docker run` 新容器加载目标模型
+4. 等待 vLLM 就绪（`/health` 检查）
+5. 转发请求到新容器 → 返回响应给 Open WebUI
+6. **切换延迟**：约 30~90 秒（取决于模型大小和磁盘速度）
+
+#### 步骤 1：安装依赖
+
+```bash
+pip install fastapi uvicorn httpx pyyaml
+```
+
+#### 步骤 2：创建目录和模型配置文件
+
+```bash
+sudo mkdir -p /opt/1panel/vllm-switcher
+```
+
+创建 `/opt/1panel/vllm-switcher/models.yaml`：
+
+```yaml
+# ============================================================
+# vLLM 动态模型切换 — 模型配置
+# ============================================================
+# 每个模型定义了 Docker 启动参数。
+# 切换模型时，Proxy 会根据此配置重新创建 vLLM 容器。
+
+# Docker 全局配置
+docker:
+  image: vllm/vllm-openai:v0.8.5   # ← 根据你的 CUDA 版本修改
+  gpu_count: all                     # GPU 数量（all = 所有 GPU）
+  model_dir: /opt/1panel/models      # 模型文件存放目录
+
+# 默认启动的模型（Proxy 启动时自动加载）
+default_model: Qwen3-14B
+
+# ──── 可用模型列表 ────
+models:
+  # 推荐首选：16GB 显卡最佳性价比
+  - name: Qwen3-14B
+    path: /models/Qwen3-14B-AWQ
+    served_name: Qwen3-14B
+    quantization: awq
+    max_model_len: 8192
+    gpu_memory_utilization: 0.90
+    extra_args:
+      - --enable-prefix-caching
+      - --enable-chunked-prefill
+
+  # 轻量模型：速度快，适合简单任务
+  - name: Qwen3-8B
+    path: /models/Qwen3-8B-AWQ
+    served_name: Qwen3-8B
+    quantization: awq
+    max_model_len: 8192
+    gpu_memory_utilization: 0.85
+    extra_args:
+      - --enable-prefix-caching
+      - --enable-chunked-prefill
+
+  # 小模型：极快，适合测试
+  - name: Qwen3-4B
+    path: /models/Qwen3-4B
+    served_name: Qwen3-4B
+    max_model_len: 8192
+    gpu_memory_utilization: 0.85
+    extra_args:
+      - --enable-prefix-caching
+
+  # 大模型 MoE：最强质量，16GB 需极限优化
+  - name: Qwen3-30B-A3B
+    path: /models/Qwen3-30B-A3B-AWQ
+    served_name: Qwen3-30B-A3B
+    quantization: awq
+    max_model_len: 4096         # 16GB 显存需限制上下文长度
+    gpu_memory_utilization: 0.95
+    extra_args:
+      - --enforce-eager         # 节省约 1-2GB 显存
+```
+
+> [!tip] 添加新模型
+> 只需在 `models` 列表中添加新条目，然后重启 Proxy 服务：
+> ```bash
+> sudo systemctl restart vllm-switcher
+> ```
+> 新模型会自动出现在 Open WebUI 的模型列表中。
+
+#### 步骤 3：创建代理脚本
+
+创建 `/opt/1panel/vllm-switcher/vllm_switcher.py`：
+
+```python
+#!/usr/bin/env python3
+"""
+vLLM 动态模型切换代理 (Model Switching Proxy)
+==============================================
+
+在 Open WebUI 和 vLLM 之间充当智能代理，根据请求中的模型名称
+自动切换 vLLM 加载的模型。
+
+工作流程：
+1. 拦截 OpenAI 兼容 API 请求
+2. 检查请求中的 model 字段
+3. 如果模型不同于当前加载的模型 → 停止旧容器，启动新容器
+4. 等待 vLLM 就绪后转发请求
+
+依赖：pip install fastapi uvicorn httpx pyyaml
+"""
+
+import asyncio
+import json
+import logging
+import os
+import time
+from typing import Optional
+
+import httpx
+import yaml
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse, Response, StreamingResponse
+import uvicorn
+
+# ──── 日志配置 ────
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+logger = logging.getLogger("vllm-switcher")
+
+# ──── 环境变量 / 配置 ────
+CONFIG_PATH = os.environ.get("CONFIG_PATH", "/opt/1panel/vllm-switcher/models.yaml")
+PROXY_PORT = int(os.environ.get("PROXY_PORT", "9000"))
+VLLM_PORT = int(os.environ.get("VLLM_PORT", "8000"))
+VLLM_HOST = os.environ.get("VLLM_HOST", "127.0.0.1")
+VLLM_URL = f"http://{VLLM_HOST}:{VLLM_PORT}"
+CONTAINER_NAME = "vllm-dynamic"
+SWITCH_TIMEOUT = int(os.environ.get("SWITCH_TIMEOUT", "300"))  # 切换超时（秒）
+
+# ──── 全局状态 ────
+current_model: Optional[str] = None
+switch_lock = asyncio.Lock()
+
+app = FastAPI(title="vLLM Dynamic Model Switcher")
+
+
+# ──────────────────── 工具函数 ────────────────────
+
+
+def load_config() -> dict:
+    """加载 models.yaml 配置"""
+    with open(CONFIG_PATH, "r") as f:
+        return yaml.safe_load(f)
+
+
+def get_model_config(model_name: str) -> Optional[dict]:
+    """根据模型名获取配置"""
+    for m in load_config().get("models", []):
+        if m["name"] == model_name:
+            return m
+    return None
+
+
+async def run_cmd(cmd: list) -> str:
+    """异步执行 shell 命令"""
+    logger.info(f"执行: {' '.join(cmd)}")
+    proc = await asyncio.create_subprocess_exec(
+        *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+    )
+    stdout, stderr = await proc.communicate()
+    if proc.returncode != 0:
+        raise RuntimeError(f"命令失败: {stderr.decode().strip()}")
+    return stdout.decode().strip()
+
+
+def build_docker_cmd(model_cfg: dict) -> list:
+    """构建 docker run 命令"""
+    cfg = load_config()
+    dock = cfg.get("docker", {})
+    image = dock.get("image", "vllm/vllm-openai:v0.8.5")
+    gpu = dock.get("gpu_count", "all")
+    mdir = dock.get("model_dir", "/opt/1panel/models")
+
+    cmd = [
+        "docker", "run", "-d",
+        "--name", CONTAINER_NAME,
+        "--gpus", gpu,
+        "-v", f"{mdir}:/models",
+        "-p", f"{VLLM_PORT}:8000",
+        image,
+        "--model", model_cfg["path"],
+        "--served-model-name", model_cfg.get("served_name", model_cfg["name"]),
+        "--host", "0.0.0.0",
+        "--port", "8000",
+        "--max-model-len", str(model_cfg.get("max_model_len", 8192)),
+        "--gpu-memory-utilization", str(model_cfg.get("gpu_memory_utilization", 0.90)),
+        "--trust-remote-code",
+    ]
+    if model_cfg.get("quantization"):
+        cmd.extend(["--quantization", model_cfg["quantization"]])
+    if model_cfg.get("extra_args"):
+        cmd.extend(model_cfg["extra_args"])
+    return cmd
+
+
+async def stop_vllm():
+    """停止并移除 vLLM 容器"""
+    for c in [
+        ["docker", "stop", "-t", "30", CONTAINER_NAME],
+        ["docker", "rm", "-f", CONTAINER_NAME],
+    ]:
+        try:
+            await run_cmd(c)
+        except RuntimeError:
+            pass  # 容器可能已不存在
+
+
+async def wait_vllm_ready(timeout: int = SWITCH_TIMEOUT) -> bool:
+    """等待 vLLM 就绪"""
+    t0 = time.time()
+    while time.time() - t0 < timeout:
+        try:
+            async with httpx.AsyncClient() as c:
+                r = await c.get(f"{VLLM_URL}/health", timeout=5.0)
+                if r.status_code == 200:
+                    logger.info("✅ vLLM 就绪")
+                    return True
+        except (httpx.ConnectError, httpx.TimeoutException):
+            pass
+        await asyncio.sleep(3)
+    raise TimeoutError(f"vLLM 在 {timeout}s 内未就绪")
+
+
+async def switch_model(target: str):
+    """切换到目标模型（加锁防止并发切换）"""
+    global current_model
+
+    model_cfg = get_model_config(target)
+    if not model_cfg:
+        available = [m["name"] for m in load_config().get("models", [])]
+        raise ValueError(f"未知模型 '{target}'，可用: {available}")
+
+    async with switch_lock:
+        # 双重检查：可能另一个协程已经切换到目标模型
+        if current_model == target:
+            try:
+                async with httpx.AsyncClient() as c:
+                    r = await c.get(f"{VLLM_URL}/health", timeout=5.0)
+                    if r.status_code == 200:
+                        return
+            except Exception:
+                pass
+
+        logger.info(f"🔄 切换模型: {current_model} → {target}")
+        await stop_vllm()
+        await run_cmd(build_docker_cmd(model_cfg))
+        await wait_vllm_ready()
+        current_model = target
+        logger.info(f"✅ 模型切换完成: {target}")
+
+
+def extract_model(body: bytes) -> Optional[str]:
+    """从请求体提取模型名"""
+    if not body:
+        return None
+    try:
+        return json.loads(body).get("model")
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return None
+
+
+# ──────────────────── API 路由 ────────────────────
+
+
+@app.get("/v1/models")
+async def list_models():
+    """返回所有配置的模型列表（Open WebUI 会调用此接口展示模型下拉框）"""
+    models = load_config().get("models", [])
+    return JSONResponse(content={
+        "object": "list",
+        "data": [
+            {"id": m["name"], "object": "model", "owned_by": "local"}
+            for m in models
+        ],
+    })
+
+
+@app.get("/health")
+async def health():
+    """代理自身健康检查 + 当前状态"""
+    vllm_ok = False
+    try:
+        async with httpx.AsyncClient() as c:
+            r = await c.get(f"{VLLM_URL}/health", timeout=5.0)
+            vllm_ok = r.status_code == 200
+    except Exception:
+        pass
+    return JSONResponse(content={
+        "status": "ok",
+        "current_model": current_model,
+        "vllm_status": "ready" if vllm_ok else "unavailable",
+    })
+
+
+@app.api_route("/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
+async def proxy(path: str, request: Request):
+    """通用代理：检测模型 → 切换 → 转发"""
+    body = await request.body()
+
+    # 检查是否需要切换模型
+    if body and path.startswith("v1/"):
+        model_name = extract_model(body)
+        if model_name:
+            try:
+                await switch_model(model_name)
+            except Exception as e:
+                logger.error(f"❌ 切换失败: {e}")
+                return JSONResponse(
+                    status_code=503,
+                    content={"error": {"message": str(e), "type": "server_error"}},
+                )
+
+    # 转发请求到 vLLM
+    try:
+        is_stream = False
+        if body:
+            try:
+                is_stream = json.loads(body).get("stream", False)
+            except Exception:
+                pass
+
+        url = f"{VLLM_URL}/{path}"
+        headers = {k: v for k, v in request.headers.items() if k != "host"}
+
+        if is_stream:
+            async def stream():
+                async with httpx.AsyncClient(timeout=httpx.Timeout(300.0)) as c:
+                    async with c.stream(request.method, url, content=body, headers=headers) as r:
+                        async for chunk in r.aiter_bytes():
+                            yield chunk
+            return StreamingResponse(stream(), media_type="text/event-stream")
+
+        async with httpx.AsyncClient(timeout=httpx.Timeout(300.0)) as c:
+            r = await c.request(request.method, url, content=body, headers=headers)
+            return Response(
+                content=r.content,
+                status_code=r.status_code,
+                media_type=r.headers.get("content-type"),
+            )
+    except httpx.ConnectError:
+        return JSONResponse(
+            status_code=503,
+            content={"error": {"message": "vLLM 不可用，模型可能正在加载", "type": "server_error"}},
+        )
+
+
+@app.on_event("startup")
+async def on_startup():
+    """启动时加载默认模型"""
+    cfg = load_config()
+    default = cfg.get("default_model")
+    if default:
+        logger.info(f"🚀 加载默认模型: {default}")
+        try:
+            await switch_model(default)
+        except Exception as e:
+            logger.error(f"默认模型加载失败: {e}")
+
+
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=PROXY_PORT)
+```
+
+#### 步骤 4：创建 systemd 服务
+
+创建 `/etc/systemd/system/vllm-switcher.service`：
+
+```ini
+[Unit]
+Description=vLLM Dynamic Model Switcher Proxy
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /opt/1panel/vllm-switcher/vllm_switcher.py
+Restart=on-failure
+RestartSec=10
+Environment=CONFIG_PATH=/opt/1panel/vllm-switcher/models.yaml
+Environment=PROXY_PORT=9000
+Environment=VLLM_PORT=8000
+
+[Install]
+WantedBy=multi-user.target
+```
+
+启用并启动：
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable vllm-switcher
+sudo systemctl start vllm-switcher
+
+# 查看日志
+sudo journalctl -u vllm-switcher -f
+```
+
+#### 步骤 5：更新 Open WebUI 的 Docker Compose
+
+> [!important] 关键变更
+> - **移除**原 docker-compose.yml 中的 `vllm-qwen3` 服务（不再需要，由 Proxy 动态管理）
+> - Open WebUI 的 `OPENAI_API_BASE_URL` **改为指向 Proxy 端口 9000**
+
+更新后的 `docker-compose.yml`：
+
+```yaml
+services:
+  # ===== Open WebUI =====
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: open-webui
+    restart: unless-stopped
+    ports:
+      - "3000:8080"
+    volumes:
+      - /opt/1panel/data/open-webui:/app/backend/data    # 数据持久化
+    environment:
+      # ← 指向 Proxy（不再是 vLLM 直接地址）
+      - OPENAI_API_BASE_URL=http://host.docker.internal:9000/v1
+    extra_hosts:
+      - "host.docker.internal:host-gateway"    # 让容器能访问宿主机
+```
+
+重启 Open WebUI：
+
+```bash
+cd /opt/1panel/docker/compose/vllm-qwen3
+docker compose up -d
+```
+
+#### 步骤 6：验证
+
+```bash
+# 1. 检查 Proxy 状态
+curl http://localhost:9000/health
+# → {"status":"ok","current_model":"Qwen3-14B","vllm_status":"ready"}
+
+# 2. 查看可用模型列表
+curl http://localhost:9000/v1/models
+# → 列出 models.yaml 中配置的所有模型
+
+# 3. 测试模型切换（从 Qwen3-14B 切换到 Qwen3-8B）
+curl http://localhost:9000/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "Qwen3-8B",
+    "messages": [{"role": "user", "content": "你好"}],
+    "max_tokens": 64
+  }'
+# 首次请求会等待 ~30-60 秒（切换模型），之后同模型请求即时响应
+
+# 4. 再次检查当前模型
+curl http://localhost:9000/health
+# → {"current_model":"Qwen3-8B",...}
+```
+
+> [!warning] 首次切换会有延迟
+> 当请求的模型与当前加载的不同时，需要 **30~90 秒** 的切换时间：
+> - 停止旧容器：~5 秒
+> - 启动新容器 + 加载模型：20~80 秒（取决于模型大小）
+>
+> 切换完成后，后续相同模型的请求会 **即时响应**（无额外延迟）。
+
+#### 管理命令速查
+
+```bash
+# 查看 Proxy 状态和当前模型
+curl -s http://localhost:9000/health | python3 -m json.tool
+
+# 查看 Proxy 日志
+sudo journalctl -u vllm-switcher -f
+
+# 重启 Proxy（修改 models.yaml 后需要）
+sudo systemctl restart vllm-switcher
+
+# 查看 vLLM 容器状态
+docker ps -f name=vllm-dynamic
+
+# 查看 vLLM 容器日志
+docker logs vllm-dynamic --tail 50
+
+# 手动停止 Proxy + vLLM
+sudo systemctl stop vllm-switcher
+docker stop vllm-dynamic
+```
+
+> [!info] 未来优化：vLLM Sleep Mode
+> vLLM 在 0.8+ 版本引入了 **Sleep Mode**（睡眠模式），支持在不重启容器的情况下快速切换模型：
+>
+> | Sleep 级别 | 行为 | 切换速度 |
+> |-----------|------|---------|
+> | **Level 1** | 权重卸载到 CPU 内存 | 亚秒级唤醒 |
+> | **Level 2** | 权重和 KV Cache 全部丢弃 | 需重新加载权重 |
+>
+> 目前 Sleep Mode 主要用于 **同架构模型** 的权重更新（如 RLHF 训练场景）。
+> 对于不同架构的模型切换（如 Qwen3-14B → Qwen3-8B），仍需重启容器。
+>
+> 参考：[vLLM Sleep Mode 官方文档](https://docs.vllm.ai/en/latest/features/sleep_mode/)
+> 社区工具：[LLMSnap](https://www.reddit.com/r/LocalLLaMA/comments/1p4k9is/llmsnap_fast_model_swapping_for_vllm_using_sleep/)
+
+### 4.10 性能优化参数参考
+
+| vLLM 参数                    | 说明                  | 推荐值             |
+| -------------------------- | ------------------- | --------------- |
+| `--gpu-memory-utilization` | GPU 显存利用率           | `0.85-0.95`     |
+| `--max-model-len`          | 最大上下文长度             | `8192`（更长需更多显存） |
+| `--max-num-seqs`           | 最大并发序列数             | `16-64`         |
+| `--tensor-parallel-size`   | 多卡并行数               | 单卡 `1`，双卡 `2`   |
+| `--quantization`           | 量化方式                | `awq`（AWQ 模型时）  |
+| `--enforce-eager`          | 禁用 CUDA Graph（节省显存） | 调试时加上           |
+| `--enable-prefix-caching`  | 前缀缓存（加速重复 prompt）   | 建议开启            |
+| `--enable-chunked-prefill` | 分块预填充（降低延迟）         | 建议开启            |
+
+完整启动示例（AWQ + 性能优化，以 Qwen3-14B-AWQ 为例）：
 
 ```yaml
 command: >
-  --model /models/Qwen3-30B-A3B-AWQ
-  --served-model-name Qwen3-30B-A3B
+  --model /models/Qwen3-14B-AWQ
+  --served-model-name Qwen3-14B
   --host 0.0.0.0
   --port 8000
   --quantization awq
@@ -1140,6 +1743,220 @@ docker compose up -d
 >
 > 如果驱动太旧，也可以更新 Windows 端的 NVIDIA 驱动到最新版。
 
+### Q12：localhost/127.0.0.1 可以访问，但局域网其他设备无法访问 WSL2 服务
+
+> [!bug] 典型表现
+> - WSL2 内 `curl localhost:端口` 正常
+> - Windows 上 `curl localhost:端口` 也正常
+> - **但局域网其他电脑/手机** `curl Windows主机IP:端口` 连接超时/拒绝
+>
+> 这几乎是 WSL2 部署服务后最常见的问题，原因通常是以下几层防火墙叠加导致的。
+
+#### 排查步骤（按优先级从高到低）
+
+**第 1 步：确认实际网络模式**
+
+```bash
+# 在 WSL 中
+ip addr show eth0 | grep inet
+```
+
+- 如果 IP 是 **172.x.x.x** → 你在 **NAT 模式**（不是镜像模式！），见下方方案 A
+- 如果 IP 与 Windows 的 `ipconfig` 结果 **相同** → 你在 **镜像模式**，见下方方案 B
+
+**第 2 步：确认服务绑定地址**
+
+```bash
+# 在 WSL 中检查服务监听地址
+ss -tlnp | grep -E '(8000|9000|3000)'   # 替换为你的端口
+```
+
+- ✅ `0.0.0.0:8000` → 监听所有网卡，正确
+- ❌ `127.0.0.1:8000` → 只监听本地回环，**外部无法访问**
+  - Docker 容器：确认 `-p` 参数写的是 `"8000:8000"`（不是 `"127.0.0.1:8000:8000"`）
+  - Python/Node 服务：确认启动参数是 `--host 0.0.0.0` 而不是默认的 `127.0.0.1`
+
+**第 3 步：检查 Windows 防火墙（普通规则）**
+
+```powershell
+# PowerShell（管理员）
+# 查看是否已有 WSL 相关的入站规则
+Get-NetFirewallRule | Where-Object { $_.DisplayName -like "*WSL*" -or $_.DisplayName -like "*Dev*" } | Select-Object DisplayName, Enabled, Direction, Action
+
+# 如果没有，添加规则（一次性开放所有常用端口）
+New-NetFirewallRule -DisplayName "WSL2 Services" -Direction Inbound -LocalPort 3000,8000,8080,9000 -Protocol TCP -Action Allow
+
+# 或者开放一个范围
+New-NetFirewallRule -DisplayName "WSL2 Dev Ports" -Direction Inbound -LocalPort 3000-9999 -Protocol TCP -Action Allow
+```
+
+**第 4 步：⭐ 检查 Hyper-V 防火墙（最常被遗漏的一层！）**
+
+> [!important] 这是 WSL2 网络的最关键一层
+> Windows 有 **两层防火墙**：
+> 1. **Windows Defender 防火墙**（上面的第 3 步）— 控制普通程序的网络访问
+> 2. **Hyper-V 防火墙** — **专门**控制进出 WSL2 虚拟机的流量
+>
+> 即使你开放了 Windows 防火墙规则，Hyper-V 防火墙默认仍然会 **阻止外部到 WSL2 的入站连接**。
+> 这就是"localhost 能访问但局域网不能"的 **最常见原因**。
+
+```powershell
+# ⚠️ 以管理员身份运行 PowerShell
+
+# 1. 先查看当前 Hyper-V 防火墙策略
+Get-NetFirewallHyperVVMSetting -Name '{40E0AC32-46A5-438A-A0B2-2B479E8F2E90}'
+
+# 如果显示 DefaultInboundAction 为 Block，这就是问题所在！
+```
+
+```powershell
+# 2. 开放 Hyper-V 防火墙（方案一：全部放行，推荐开发环境使用）
+Set-NetFirewallHyperVVMSetting -Name '{40E0AC32-46A5-438A-A0B2-2B479E8F2E90}' -DefaultInboundAction Allow
+
+# 3. 开放 Hyper-V 防火墙（方案二：只放行特定端口，更安全）
+New-NetFirewallHyperVRule -Name "WSL-HTTP-3000" -DisplayName "WSL2 Open WebUI" `
+  -Direction Inbound -Action Allow -LocalPorts 3000 -Protocol TCP `
+  -VMCreatorId '{40E0AC32-46A5-438A-A0B2-2B479E8F2E90}'
+
+New-NetFirewallHyperVRule -Name "WSL-VLLM-8000" -DisplayName "WSL2 vLLM" `
+  -Direction Inbound -Action Allow -LocalPorts 8000 -Protocol TCP `
+  -VMCreatorId '{40E0AC32-46A5-438A-A0B2-2B479E8F2E90}'
+
+New-NetFirewallHyperVRule -Name "WSL-Proxy-9000" -DisplayName "WSL2 vLLM Proxy" `
+  -Direction Inbound -Action Allow -LocalPorts 9000 -Protocol TCP `
+  -VMCreatorId '{40E0AC32-46A5-438A-A0B2-2B479E8F2E90}'
+
+New-NetFirewallHyperVRule -Name "WSL-1Panel" -DisplayName "WSL2 1Panel" `
+  -Direction Inbound -Action Allow -LocalPorts 8090 -Protocol TCP `
+  -VMCreatorId '{40E0AC32-46A5-438A-A0B2-2B479E8F2E90}'
+```
+
+> [!tip] 如果 Hyper-V 防火墙命令报"拒绝访问"
+> 需要先将当前用户加入 **Hyper-V Administrators** 组：
+> ```powershell
+> Add-LocalGroupMember -Group "Hyper-V Administrators" -Member "你的Windows用户名"
+> ```
+> 然后 **注销并重新登录 Windows**，再执行上面的命令。
+
+**第 5 步：检查网络配置文件类型**
+
+```powershell
+# PowerShell（管理员）
+Get-NetConnectionProfile
+```
+
+如果 `NetworkCategory` 显示为 `Public`，改为 `Private`：
+
+```powershell
+# 查看网卡名称
+Get-NetAdapter | Select-Object Name, Status
+
+# 改为专用网络（替换为你的网卡名）
+Set-NetConnectionProfile -InterfaceAlias "以太网" -NetworkCategory Private
+# 或 WiFi：
+Set-NetConnectionProfile -InterfaceAlias "WLAN" -NetworkCategory Private
+```
+
+#### 方案 A：你在 NAT 模式（IP 是 172.x.x.x）
+
+NAT 模式下，WSL2 有独立的虚拟 IP，Windows 默认只做 localhost 端口转发，**不转发局域网流量**。
+需要手动添加端口转发：
+
+```powershell
+# PowerShell（管理员）
+# 获取 WSL IP
+$wslIp = (wsl hostname -I).Trim()
+
+# 添加端口转发（每个需要暴露的端口都要添加）
+netsh interface portproxy add v4tov4 listenport=3000 listenaddress=0.0.0.0 connectport=3000 connectaddress=$wslIp
+netsh interface portproxy add v4tov4 listenport=8000 listenaddress=0.0.0.0 connectport=8000 connectaddress=$wslIp
+netsh interface portproxy add v4tov4 listenport=9000 listenaddress=0.0.0.0 connectport=9000 connectaddress=$wslIp
+netsh interface portproxy add v4tov4 listenport=8090 listenaddress=0.0.0.0 connectport=8090 connectaddress=$wslIp
+
+# 验证
+netsh interface portproxy show all
+```
+
+> ⚠️ NAT 模式每次 WSL 重启后 IP 可能变化，需要重新执行。建议 **切换到镜像模式**（见下方方案 B）。
+
+#### 方案 B：确认启用镜像模式（推荐）
+
+编辑 `C:\Users\你的用户名\.wslconfig`，确认包含以下内容：
+
+```ini
+[wsl2]
+networkingMode=mirrored
+firewall=true
+localhostForwarding=true
+```
+
+保存后在 PowerShell（管理员）中重启 WSL：
+
+```powershell
+wsl.exe --shutdown
+```
+
+然后重新打开 WSL，验证：
+
+```bash
+# IP 应与 Windows 主机相同
+ip addr show eth0 | grep inet
+```
+
+#### 完整验证清单
+
+```bash
+# ═══ 在 WSL 中 ═══
+# 确认服务在监听 0.0.0.0
+ss -tlnp | grep -E '(3000|8000|8090|9000)'
+
+# ═══ 在 Windows PowerShell 中 ═══
+# 确认 Windows 在监听这些端口
+netstat -an | findstr "LISTENING" | findstr "3000 8000 8090 9000"
+
+# ═══ 在局域网其他设备上 ═══
+# 用 Windows 主机 IP 访问
+curl http://Windows主机IP:3000    # Open WebUI
+curl http://Windows主机IP:8090    # 1Panel
+curl http://Windows主机IP:9000/v1/models  # vLLM Proxy
+```
+
+> [!quote] 三层防火墙总结
+> ```
+> 局域网设备 →①→ Windows Defender 防火墙 →②→ Hyper-V 防火墙 →③→ WSL2 服务
+>                  (第 3 步)                    (第 4 步 ⭐)
+> ```
+> - 第 ① 层：`New-NetFirewallRule`（普通防火墙规则）
+> - 第 ② 层：`Set-NetFirewallHyperVVMSetting`（**最常被遗漏！**）
+> - 第 ③ 层：服务自身绑定地址（`0.0.0.0` vs `127.0.0.1`）
+>
+> **localhost 能访问但局域网不能 = 第 ② 层没开放**，这是 90% 情况的根本原因。
+
+### Q13：模型切换 Proxy 相关问题
+
+```bash
+# 查看切换代理状态
+curl -s http://localhost:9000/health | python3 -m json.tool
+
+# 查看代理日志（实时）
+sudo journalctl -u vllm-switcher -f
+
+# 重启代理
+sudo systemctl restart vllm-switcher
+
+# 查看当前 vLLM 动态容器
+docker ps -f name=vllm-dynamic
+
+# 如果模型切换卡住，手动清理
+docker stop vllm-dynamic && docker rm vllm-dynamic
+sudo systemctl restart vllm-switcher
+```
+
+> [!tip] Open WebUI 中看不到模型列表？
+> 1. 确认 Proxy 服务已启动：`systemctl status vllm-switcher`
+> 2. 确认 `OPENAI_API_BASE_URL` 指向 Proxy（端口 9000），不是 vLLM 直接地址（端口 8000）
+> 3. 在 Open WebUI → 设置 → 连接 中刷新模型列表
+
 ---
 
 ## 六、完整配置速查
@@ -1194,7 +2011,9 @@ systemctl is-enabled ssh             # enabled
 
 ---
 
-## 参考资料
+## 七、动态模型切换
+
+> 完整的动态模型切换方案（包括代理脚本、配置文件、systemd 服务）详见 [[#4.9 动态模型切换（按需加载不同模型）]]。
 
 ### WSL2 基础
 
@@ -1219,3 +2038,10 @@ systemctl is-enabled ssh             # enabled
 - [vLLM 官方 Docker 部署文档](https://docs.vllm.com.cn/en/latest/deployment/docker/)
 - [Docker Compose 编排 vLLM 多模型服务 — 知乎](https://zhuanlan.zhihu.com/p/1985432653625844472)
 - [vLLM 部署 Qwen3 方案 — 俊瑶先森](http://junyao.tech/posts/2a08b1ba.html)
+
+### vLLM 动态模型切换
+
+- [vLLM Sleep Mode 官方文档](https://docs.vllm.ai/en/latest/features/sleep_mode/)
+- [LLMSnap — 基于 Sleep Mode 的快速模型切换工具 (Reddit)](https://www.reddit.com/r/LocalLLaMA/comments/1p4k9is/llmsnap_fast_model_swapping_for_vllm_using_sleep/)
+- [vLLM Sleep Mode 零重载模型切换 — 知乎](https://zhuanlan.zhihu.com/p/1967692417659537009)
+- [Model Swapping with vLLM — Reddit 讨论](https://www.reddit.com/r/LocalLLaMA/comments/1kg6tk3/model_swapping_with_vllm/)
