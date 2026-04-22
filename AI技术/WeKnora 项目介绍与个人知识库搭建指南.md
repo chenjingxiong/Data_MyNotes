@@ -64,12 +64,12 @@ tags:
 
 ### 2.5 全面的 LLM 兼容性
 
-| 类别 | 支持列表 |
-|------|----------|
-| **LLM 提供商** | OpenAI / Azure OpenAI / DeepSeek / Qwen（阿里云）/ 智谱 / 混元 / 豆包（火山引擎）/ Gemini / MiniMax / NVIDIA / Novita AI / SiliconFlow / OpenRouter / Ollama |
-| **Embedding 模型** | Ollama / BGE / GTE / OpenAI 兼容 API |
-| **向量数据库** | PostgreSQL (pgvector) / Elasticsearch / Milvus / Weaviate / Qdrant |
-| **对象存储** | Local / MinIO / AWS S3 / 火山引擎 TOS / 阿里云 OSS |
+| 类别               | 支持列表                                                                                                                                        |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| **LLM 提供商**      | OpenAI / Azure OpenAI / DeepSeek / Qwen（阿里云）/ 智谱 / 混元 / 豆包（火山引擎）/ Gemini / MiniMax / NVIDIA / Novita AI / SiliconFlow / OpenRouter / Ollama |
+| **Embedding 模型** | Ollama / BGE / GTE / OpenAI 兼容 API                                                                                                          |
+| **向量数据库**        | PostgreSQL (pgvector) / Elasticsearch / Milvus / Weaviate / Qdrant                                                                          |
+| **对象存储**         | Local / MinIO / AWS S3 / 火山引擎 TOS / 阿里云 OSS                                                                                                 |
 
 ### 2.6 IM 渠道集成
 
@@ -304,15 +304,15 @@ python -m weknora-mcp-server
 
 ## 6. 版本演进
 
-| 版本 | 核心特性 |
-|------|----------|
+| 版本              | 核心特性                                                                              |
+| --------------- | --------------------------------------------------------------------------------- |
 | **v0.4.0** (最新) | 知识助手云端服务、WeKnora Cloud、Chrome 扩展、ClawHub 技能市场、微信 IM 集成、Notion 数据源、Azure OpenAI 支持 |
-| **v0.3.6** | ASR 语音识别、飞书数据源自动同步、OIDC 认证、IM 引用上下文、文档摘要、并行工具调用 |
-| **v0.3.5** | Telegram/钉钉/Mattermost IM 集成、Slash 命令、建议问题、VLM 自动描述图片 |
-| **v0.3.4** | 企业微信/飞书/Slack IM 集成、多模态图片、Weaviate 向量库、AWS S3 存储、AES-256 加密 |
-| **v0.3.3** | 父子分块、知识库置顶、Fallback 响应、Milvus 向量库 |
-| **v0.3.0** | 共享空间、Agent 技能系统、自定义 Agent、数据分析 Agent、思考模式、Kubernetes Helm |
-| **v0.2.0** | ReACT Agent 模式、多类型知识库、对话策略、网络搜索、MCP 工具集成 |
+| **v0.3.6**      | ASR 语音识别、飞书数据源自动同步、OIDC 认证、IM 引用上下文、文档摘要、并行工具调用                                   |
+| **v0.3.5**      | Telegram/钉钉/Mattermost IM 集成、Slash 命令、建议问题、VLM 自动描述图片                             |
+| **v0.3.4**      | 企业微信/飞书/Slack IM 集成、多模态图片、Weaviate 向量库、AWS S3 存储、AES-256 加密                       |
+| **v0.3.3**      | 父子分块、知识库置顶、Fallback 响应、Milvus 向量库                                                 |
+| **v0.3.0**      | 共享空间、Agent 技能系统、自定义 Agent、数据分析 Agent、思考模式、Kubernetes Helm                         |
+| **v0.2.0**      | ReACT Agent 模式、多类型知识库、对话策略、网络搜索、MCP 工具集成                                          |
 
 ---
 
@@ -364,16 +364,16 @@ python -m weknora-mcp-server
 
 ## 8. 与其他知识库工具对比
 
-| 特性 | WeKnora | MaxKB | Dify | FastGPT |
-|------|---------|-------|------|---------|
-| 开源协议 | MIT | Apache 2.0 | Apache 2.0 | Apache 2.0 |
-| RAG 检索 | BM25 + Dense + GraphRAG | Dense + BM25 | Dense + BM25 | Dense + BM25 |
-| Agent 模式 | ReACT Agent | 简单工作流 | 深度工作流 | 简单工作流 |
-| IM 集成 | 7+ 渠道 | 有限 | 有限 | 有限 |
-| MCP 支持 | 内建 | 无 | 部分支持 | 无 |
-| 知识图谱 | Neo4j GraphRAG | 无 | 无 | 无 |
-| 数据源同步 | 飞书/Notion | 无 | 无 | 无 |
-| 部署复杂度 | Docker 一键部署 | Docker | Docker | Docker |
+| 特性       | WeKnora                 | MaxKB        | Dify         | FastGPT      |
+| -------- | ----------------------- | ------------ | ------------ | ------------ |
+| 开源协议     | MIT                     | Apache 2.0   | Apache 2.0   | Apache 2.0   |
+| RAG 检索   | BM25 + Dense + GraphRAG | Dense + BM25 | Dense + BM25 | Dense + BM25 |
+| Agent 模式 | ReACT Agent             | 简单工作流        | 深度工作流        | 简单工作流        |
+| IM 集成    | 7+ 渠道                   | 有限           | 有限           | 有限           |
+| MCP 支持   | 内建                      | 无            | 部分支持         | 无            |
+| 知识图谱     | Neo4j GraphRAG          | 无            | 无            | 无            |
+| 数据源同步    | 飞书/Notion               | 无            | 无            | 无            |
+| 部署复杂度    | Docker 一键部署             | Docker       | Docker       | Docker       |
 
 WeKnora 的优势在于：**Agent 能力强**（ReACT 渐进推理）、**集成渠道丰富**（7+ IM 渠道）、**检索策略全面**（BM25 + Dense + GraphRAG 三重检索）、**数据源自动同步**（飞书/Notion）。
 
