@@ -1746,99 +1746,213 @@ docker compose up -d
 ### Q12：localhost/127.0.0.1 可以访问，但局域网其他设备无法访问 WSL2 服务
 
 > [!bug] 典型表现
-> - WSL2 内 `curl localhost:端口` 正常
-> - Windows 上 `curl localhost:端口` 也正常
-> - **但局域网其他电脑/手机** `curl Windows主机IP:端口` 连接超时/拒绝
+> - WSL2 内 `curl localhost:端口` ✅ 正常
+> - Windows 上 `curl localhost:端口` ✅ 也正常
+> - **但局域网其他电脑/手机** `curl Windows主机IP:端口` ❌ 连接超时/拒绝
+
+> [!important] 根本原因（2025 年已知问题）
+> 即使你配置了 `networkingMode=mirrored`，**Docker Desktop 也不会完全利用 WSL2 的镜像网络模式**。
+> Docker 内部仍使用自己的 NAT 网络，容器的端口映射只在 localhost 生效，不会暴露到 Windows 的物理网卡。
+> 相关 Issue：[moby/moby#48201](https://github.com/moby/moby/issues/48201)
 >
-> 这几乎是 WSL2 部署服务后最常见的问题，原因通常是以下几层防火墙叠加导致的。
+> **解决方案**：在 Windows 端用 `netsh interface portproxy` 做端口转发，这是目前唯一 **100% 可靠** 的方法。
 
-#### 排查步骤（按优先级从高到低）
+#### ⭐ 一键修复脚本（推荐）
 
-**第 1 步：确认实际网络模式**
-
-```bash
-# 在 WSL 中
-ip addr show eth0 | grep inet
-```
-
-- 如果 IP 是 **172.x.x.x** → 你在 **NAT 模式**（不是镜像模式！），见下方方案 A
-- 如果 IP 与 Windows 的 `ipconfig` 结果 **相同** → 你在 **镜像模式**，见下方方案 B
-
-**第 2 步：确认服务绑定地址**
-
-```bash
-# 在 WSL 中检查服务监听地址
-ss -tlnp | grep -E '(8000|9000|3000)'   # 替换为你的端口
-```
-
-- ✅ `0.0.0.0:8000` → 监听所有网卡，正确
-- ❌ `127.0.0.1:8000` → 只监听本地回环，**外部无法访问**
-  - Docker 容器：确认 `-p` 参数写的是 `"8000:8000"`（不是 `"127.0.0.1:8000:8000"`）
-  - Python/Node 服务：确认启动参数是 `--host 0.0.0.0` 而不是默认的 `127.0.0.1`
-
-**第 3 步：检查 Windows 防火墙（普通规则）**
+> 将以下脚本保存为 `wsl-expose-ports.ps1`，**以管理员身份运行 PowerShell** 执行。
 
 ```powershell
-# PowerShell（管理员）
-# 查看是否已有 WSL 相关的入站规则
-Get-NetFirewallRule | Where-Object { $_.DisplayName -like "*WSL*" -or $_.DisplayName -like "*Dev*" } | Select-Object DisplayName, Enabled, Direction, Action
+# wsl-expose-ports.ps1
+# 功能：将 WSL2 服务的端口暴露到局域网
+# 用法：右键 → 以管理员身份运行 PowerShell → 执行此脚本
+# 需要：每次 WSL 重启后重新执行（或加入任务计划自动执行）
 
-# 如果没有，添加规则（一次性开放所有常用端口）
-New-NetFirewallRule -DisplayName "WSL2 Services" -Direction Inbound -LocalPort 3000,8000,8080,9000 -Protocol TCP -Action Allow
+Write-Host "=== WSL2 端口暴露到局域网 ===" -ForegroundColor Cyan
 
-# 或者开放一个范围
-New-NetFirewallRule -DisplayName "WSL2 Dev Ports" -Direction Inbound -LocalPort 3000-9999 -Protocol TCP -Action Allow
+# ──── 需要暴露的端口列表 ────
+# 按需增删，格式：端口号=用途说明
+$ports = @{
+    3000  = "Open WebUI"
+    8000  = "vLLM"
+    8090  = "1Panel"
+    9000  = "vLLM Switcher Proxy"
+}
+
+# ──── 1. 清理旧的转发规则 ────
+Write-Host "`n[1/4] 清理旧的端口转发规则..." -ForegroundColor Yellow
+netsh interface portproxy reset
+
+# ──── 2. 添加端口转发（核心步骤）───
+# 关键：connectaddress=127.0.0.1
+# 即使 WSL2 的 IP 变了，localhost 转发始终有效
+Write-Host "`n[2/4] 添加端口转发规则..." -ForegroundColor Yellow
+foreach ($port in $ports.Keys) {
+    netsh interface portproxy add v4tov4 `
+        listenport=$port `
+        listenaddress=0.0.0.0 `
+        connectport=$port `
+        connectaddress=127.0.0.1
+    Write-Host "  ✓ 端口 $port ($($ports[$port]))" -ForegroundColor Green
+}
+
+# ──── 3. 开放 Windows 防火墙 ────
+Write-Host "`n[3/4] 开放防火墙规则..." -ForegroundColor Yellow
+$portList = $ports.Keys -join ","
+# 删除旧规则（如果存在）
+Remove-NetFirewallRule -DisplayName "WSL2 LAN Access" -ErrorAction SilentlyContinue
+# 添加新规则
+New-NetFirewallRule `
+    -DisplayName "WSL2 LAN Access" `
+    -Direction Inbound `
+    -LocalPort $portList `
+    -Protocol TCP `
+    -Action Allow | Out-Null
+Write-Host "  ✓ 防火墙已开放端口: $portList" -ForegroundColor Green
+
+# ──── 4. 尝试开放 Hyper-V 防火墙 ────
+Write-Host "`n[4/4] 开放 Hyper-V 防火墙（可能需要 Hyper-V Admin 权限）..." -ForegroundColor Yellow
+try {
+    Set-NetFirewallHyperVVMSetting `
+        -Name '{40E0AC32-46A5-438A-A0B2-2B479E8F2E90}' `
+        -DefaultInboundAction Allow `
+        -ErrorAction Stop
+    Write-Host "  ✓ Hyper-V 防火墙已开放" -ForegroundColor Green
+} catch {
+    Write-Host "  ⚠ Hyper-V 防火墙设置失败（不影响主要功能）" -ForegroundColor DarkGray
+    Write-Host "    如需开放，请先将用户加入 Hyper-V Administrators 组后重试" -ForegroundColor DarkGray
+}
+
+# ──── 验证 ────
+Write-Host "`n=== 验证 ===" -ForegroundColor Cyan
+Write-Host "端口转发规则:" -ForegroundColor White
+netsh interface portproxy show all
+
+Write-Host "`n防火墙规则:" -ForegroundColor White
+Get-NetFirewallRule -DisplayName "WSL2 LAN Access" |
+    Select-Object DisplayName, Enabled, Direction, Action | Format-Table
+
+# 获取 Windows IP 供参考
+$localIP = (Get-NetIPAddress -AddressFamily IPv4 |
+    Where-Object { $_.InterfaceAlias -notlike "*Loopback*" -and $_.InterfaceAlias -notlike "*vEthernet*" -and $_.IPAddress -notlike "127.*" } |
+    Select-Object -First 1).IPAddress
+Write-Host "局域网访问地址: http://${localIP}:端口" -ForegroundColor Green
+Write-Host "`n完成！局域网设备现在可以通过 http://${localIP}:端口 访问 WSL2 服务。" -ForegroundColor Green
 ```
 
-**第 4 步：⭐ 检查 Hyper-V 防火墙（最常被遗漏的一层！）**
-
-> [!important] 这是 WSL2 网络的最关键一层
-> Windows 有 **两层防火墙**：
-> 1. **Windows Defender 防火墙**（上面的第 3 步）— 控制普通程序的网络访问
-> 2. **Hyper-V 防火墙** — **专门**控制进出 WSL2 虚拟机的流量
->
-> 即使你开放了 Windows 防火墙规则，Hyper-V 防火墙默认仍然会 **阻止外部到 WSL2 的入站连接**。
-> 这就是"localhost 能访问但局域网不能"的 **最常见原因**。
+#### 手动执行（如果不想用脚本）
 
 ```powershell
-# ⚠️ 以管理员身份运行 PowerShell
+# ⚠️ 必须以管理员身份运行 PowerShell
 
-# 1. 先查看当前 Hyper-V 防火墙策略
-Get-NetFirewallHyperVVMSetting -Name '{40E0AC32-46A5-438A-A0B2-2B479E8F2E90}'
+# 核心命令：将外部流量通过 localhost 转发到 WSL2
+# 这是最可靠的方法，无论 NAT 还是镜像模式都有效
 
-# 如果显示 DefaultInboundAction 为 Block，这就是问题所在！
-```
+# 暴露 Open WebUI (3000)
+netsh interface portproxy add v4tov4 listenport=3000 listenaddress=0.0.0.0 connectport=3000 connectaddress=127.0.0.1
 
-```powershell
-# 2. 开放 Hyper-V 防火墙（方案一：全部放行，推荐开发环境使用）
+# 暴露 vLLM (8000)
+netsh interface portproxy add v4tov4 listenport=8000 listenaddress=0.0.0.0 connectport=8000 connectaddress=127.0.0.1
+
+# 暴露 1Panel (8090)
+netsh interface portproxy add v4tov4 listenport=8090 listenaddress=0.0.0.0 connectport=8090 connectaddress=127.0.0.1
+
+# 暴露 vLLM Switcher Proxy (9000)
+netsh interface portproxy add v4tov4 listenport=9000 listenaddress=0.0.0.0 connectport=9000 connectaddress=127.0.0.1
+
+# 开放防火墙
+New-NetFirewallRule -DisplayName "WSL2 LAN Access" -Direction Inbound -LocalPort 3000,8000,8090,9000 -Protocol TCP -Action Allow
+
+# 开放 Hyper-V 防火墙（如果权限允许）
 Set-NetFirewallHyperVVMSetting -Name '{40E0AC32-46A5-438A-A0B2-2B479E8F2E90}' -DefaultInboundAction Allow
 
-# 3. 开放 Hyper-V 防火墙（方案二：只放行特定端口，更安全）
-New-NetFirewallHyperVRule -Name "WSL-HTTP-3000" -DisplayName "WSL2 Open WebUI" `
-  -Direction Inbound -Action Allow -LocalPorts 3000 -Protocol TCP `
-  -VMCreatorId '{40E0AC32-46A5-438A-A0B2-2B479E8F2E90}'
-
-New-NetFirewallHyperVRule -Name "WSL-VLLM-8000" -DisplayName "WSL2 vLLM" `
-  -Direction Inbound -Action Allow -LocalPorts 8000 -Protocol TCP `
-  -VMCreatorId '{40E0AC32-46A5-438A-A0B2-2B479E8F2E90}'
-
-New-NetFirewallHyperVRule -Name "WSL-Proxy-9000" -DisplayName "WSL2 vLLM Proxy" `
-  -Direction Inbound -Action Allow -LocalPorts 9000 -Protocol TCP `
-  -VMCreatorId '{40E0AC32-46A5-438A-A0B2-2B479E8F2E90}'
-
-New-NetFirewallHyperVRule -Name "WSL-1Panel" -DisplayName "WSL2 1Panel" `
-  -Direction Inbound -Action Allow -LocalPorts 8090 -Protocol TCP `
-  -VMCreatorId '{40E0AC32-46A5-438A-A0B2-2B479E8F2E90}'
+# 验证转发规则
+netsh interface portproxy show all
 ```
 
-> [!tip] 如果 Hyper-V 防火墙命令报"拒绝访问"
-> 需要先将当前用户加入 **Hyper-V Administrators** 组：
-> ```powershell
-> Add-LocalGroupMember -Group "Hyper-V Administrators" -Member "你的Windows用户名"
+> [!tip] 为什么 `connectaddress=127.0.0.1` 而不是 WSL IP？
+> 因为 Windows 已经自动将 localhost 端口转发到 WSL2（这是 WSL2 的内置行为）。
+> 所以转发链路是：
 > ```
-> 然后 **注销并重新登录 Windows**，再执行上面的命令。
+> 局域网 → Windows:0.0.0.0:端口 → localhost:端口 → WSL2:端口
+>          (portproxy)              (WSL内置)      (Docker -p)
+> ```
+> 这个方法的好处是 **不依赖 WSL IP**，WSL 重启后也无需更新 IP。
 
-**第 5 步：检查网络配置文件类型**
+#### 设置开机自动执行
+
+> [!warning] 端口转发规则是内存态的
+> `netsh interface portproxy` 的规则存储在系统中，但 **WSL 重启后可能需要重新执行**（尤其是 NAT 模式下 WSL IP 变化时）。
+> 建议设置为 **Windows 任务计划** 自动执行。
+
+**方法 1：Windows 任务计划程序（图形界面）**
+
+1. 按 `Win+R` → 输入 `taskschd.msc` → 回车
+2. 右侧点击 **创建基本任务**
+3. 名称：`WSL2 暴露端口`
+4. 触发器：**计算机启动时** 或 **用户登录时**
+5. 操作：**启动程序**
+   - 程序：`powershell.exe`
+   - 参数：`-ExecutionPolicy Bypass -File "C:\Users\你的用户名\wsl-expose-ports.ps1"`
+6. 勾选 **使用最高权限运行**
+7. 完成
+
+**方法 2：命令行快速创建（管理员 PowerShell）**
+
+```powershell
+# 创建开机自动执行的任务
+$action = New-ScheduledTaskAction `
+    -Execute "powershell.exe" `
+    -Argument '-ExecutionPolicy Bypass -File "C:\Users\你的用户名\wsl-expose-ports.ps1"'
+
+$trigger = New-ScheduledTaskTrigger -AtLogOn -User "$env:USERNAME"
+
+$settings = New-ScheduledTaskSettingsSet `
+    -AllowStartIfOnBatteries `
+    -DontStopIfGoingOnBatteries `
+    -StartWhenAvailable
+
+Register-ScheduledTask `
+    -TaskName "WSL2-Expose-Ports" `
+    -Action $action `
+    -Trigger $trigger `
+    -Settings $settings `
+    -RunLevel Highest `
+    -Force
+
+Write-Host "✅ 已创建开机自动执行任务" -ForegroundColor Green
+```
+
+#### 验证端口是否暴露成功
+
+```powershell
+# ═══ Windows PowerShell 中 ═══
+
+# 1. 确认 portproxy 规则已生效
+netsh interface portproxy show all
+# 应显示所有端口都绑定到 0.0.0.0 → 127.0.0.1
+
+# 2. 确认 Windows 在监听
+netstat -an | findstr "LISTENING" | findstr "3000 8000 8090 9000"
+```
+
+```bash
+# ═══ WSL 中 ═══
+# 确认服务在监听 0.0.0.0
+ss -tlnp | grep -E '(3000|8000|8090|9000)'
+```
+
+```bash
+# ═══ 局域网其他设备上 ═══
+# 用 Windows 主机 IP 访问（不是 localhost）
+curl http://Windows主机IP:3000              # Open WebUI
+curl http://Windows主机IP:8090              # 1Panel
+curl http://Windows主机IP:9000/v1/models    # vLLM Proxy
+curl http://Windows主机IP:9000/health       # 切换代理状态
+```
+
+#### 补充排查：如果以上都做了还是不行
+
+**1. 检查网络配置文件**
 
 ```powershell
 # PowerShell（管理员）
@@ -1848,89 +1962,46 @@ Get-NetConnectionProfile
 如果 `NetworkCategory` 显示为 `Public`，改为 `Private`：
 
 ```powershell
-# 查看网卡名称
 Get-NetAdapter | Select-Object Name, Status
-
-# 改为专用网络（替换为你的网卡名）
 Set-NetConnectionProfile -InterfaceAlias "以太网" -NetworkCategory Private
 # 或 WiFi：
 Set-NetConnectionProfile -InterfaceAlias "WLAN" -NetworkCategory Private
 ```
 
-#### 方案 A：你在 NAT 模式（IP 是 172.x.x.x）
-
-NAT 模式下，WSL2 有独立的虚拟 IP，Windows 默认只做 localhost 端口转发，**不转发局域网流量**。
-需要手动添加端口转发：
-
-```powershell
-# PowerShell（管理员）
-# 获取 WSL IP
-$wslIp = (wsl hostname -I).Trim()
-
-# 添加端口转发（每个需要暴露的端口都要添加）
-netsh interface portproxy add v4tov4 listenport=3000 listenaddress=0.0.0.0 connectport=3000 connectaddress=$wslIp
-netsh interface portproxy add v4tov4 listenport=8000 listenaddress=0.0.0.0 connectport=8000 connectaddress=$wslIp
-netsh interface portproxy add v4tov4 listenport=9000 listenaddress=0.0.0.0 connectport=9000 connectaddress=$wslIp
-netsh interface portproxy add v4tov4 listenport=8090 listenaddress=0.0.0.0 connectport=8090 connectaddress=$wslIp
-
-# 验证
-netsh interface portproxy show all
-```
-
-> ⚠️ NAT 模式每次 WSL 重启后 IP 可能变化，需要重新执行。建议 **切换到镜像模式**（见下方方案 B）。
-
-#### 方案 B：确认启用镜像模式（推荐）
-
-编辑 `C:\Users\你的用户名\.wslconfig`，确认包含以下内容：
-
-```ini
-[wsl2]
-networkingMode=mirrored
-firewall=true
-localhostForwarding=true
-```
-
-保存后在 PowerShell（管理员）中重启 WSL：
-
-```powershell
-wsl.exe --shutdown
-```
-
-然后重新打开 WSL，验证：
+**2. 检查服务绑定地址**
 
 ```bash
-# IP 应与 Windows 主机相同
-ip addr show eth0 | grep inet
-```
-
-#### 完整验证清单
-
-```bash
-# ═══ 在 WSL 中 ═══
-# 确认服务在监听 0.0.0.0
+# 在 WSL 中检查服务监听地址
 ss -tlnp | grep -E '(3000|8000|8090|9000)'
-
-# ═══ 在 Windows PowerShell 中 ═══
-# 确认 Windows 在监听这些端口
-netstat -an | findstr "LISTENING" | findstr "3000 8000 8090 9000"
-
-# ═══ 在局域网其他设备上 ═══
-# 用 Windows 主机 IP 访问
-curl http://Windows主机IP:3000    # Open WebUI
-curl http://Windows主机IP:8090    # 1Panel
-curl http://Windows主机IP:9000/v1/models  # vLLM Proxy
 ```
 
-> [!quote] 三层防火墙总结
+- ✅ `0.0.0.0:8000` → 监听所有网卡，正确
+- ❌ `127.0.0.1:8000` → 只监听本地回环，需要改为 `0.0.0.0`
+
+**3. 检查杀毒软件 / 第三方防火墙**
+
+Windows Defender 防火墙已通过脚本开放。如果你安装了 **第三方安全软件**（如 360、火绒、卡巴斯基等），它们可能有独立的防火墙规则，需要手动放行。
+
+**4. 检查路由器 AP 隔离**
+
+如果局域网设备之间互相无法 ping 通，可能是路由器开启了 **AP 隔离**（客户端隔离）。登录路由器管理页面关闭此功能。
+
+> [!quote] 转发链路总结
 > ```
-> 局域网设备 →①→ Windows Defender 防火墙 →②→ Hyper-V 防火墙 →③→ WSL2 服务
->                  (第 3 步)                    (第 4 步 ⭐)
+> 局域网设备
+>     │
+>     ▼
+> Windows 物理网卡:0.0.0.0:端口        ← netsh portproxy 监听
+>     │                                 ← Windows 防火墙放行
+>     ▼
+> localhost:端口                        ← WSL2 内置 localhost 转发
+>     │                                 ← Hyper-V 防火墙放行
+>     ▼
+> WSL2:端口                             ← Docker -p 映射 / 服务直接监听
+>     │
+>     ▼
+> Docker 容器:端口                      ← 容器内服务（0.0.0.0 绑定）
 > ```
-> - 第 ① 层：`New-NetFirewallRule`（普通防火墙规则）
-> - 第 ② 层：`Set-NetFirewallHyperVVMSetting`（**最常被遗漏！**）
-> - 第 ③ 层：服务自身绑定地址（`0.0.0.0` vs `127.0.0.1`）
->
-> **localhost 能访问但局域网不能 = 第 ② 层没开放**，这是 90% 情况的根本原因。
 
 ### Q13：模型切换 Proxy 相关问题
 
