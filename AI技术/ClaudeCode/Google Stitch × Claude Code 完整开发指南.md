@@ -16,7 +16,8 @@
 - [[#6. 实战示例 2 —— 移动 App：健身追踪应用]]
 - [[#7. 实战示例 3 —— 后端 + 前端全栈：电商 API 平台]]
 - [[#8. 高级技巧与最佳实践]]
-- [[#9. 常见问题与故障排除]]
+- [[#9. 通过 API 直接调用 Stitch 能力（Gemini API 集成）]]
+- [[#10. 常见问题与故障排除]]
 
 ---
 
@@ -1166,7 +1167,690 @@ claude "配置 GitHub Actions CI/CD"
 
 ---
 
-## 9. 常见问题与故障排除
+## 9. 通过 API 直接调用 Stitch 能力（Gemini API 集成）
+
+> **核心思路**：Google Stitch 底层使用 **Gemini 多模态模型**驱动。通过获取 Google AI Studio 的 API Key，可以在 Claude Code 中直接调用 Gemini API，实现与 Stitch 类似的 UI 生成能力，**无需手动访问 Stitch 网页**。
+
+### 9.1 原理说明
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│            两种使用 Stitch 能力的方式                              │
+│                                                                 │
+│  方式 A（手动）：                                                 │
+│  浏览器 → stitch.withgoogle.com → 手动输入 Prompt → 复制代码      │
+│                                                                 │
+│  方式 B（API 直接调用）✅ 推荐：                                   │
+│  Claude Code → Gemini API → 自动生成 UI 代码 → 直接集成到项目     │
+│                                                                 │
+│  优势：自动化、可批量、可嵌入 CI/CD、无需离开终端                   │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+| 对比维度 | 手动使用 Stitch 网页 | API 直接调用 |
+|----------|---------------------|-------------|
+| **效率** | 每次需手动操作 | 一次配置，反复使用 |
+| **批量生成** | 逐页操作 | 脚本批量生成 |
+| **集成度** | 需手动复制粘贴 | 代码直接写入项目 |
+| **自动化** | 无法自动化 | 可嵌入 CI/CD 流水线 |
+| **费用** | 免费额度 | 按 Gemini API 计费 |
+
+### 9.2 获取 Google AI Studio API Key
+
+**Step 1：访问 Google AI Studio**
+
+前往 [Google AI Studio](https://aistudio.google.com/)，使用 Google 账号登录。
+
+**Step 2：创建 API Key**
+
+```
+Google AI Studio 控制台
+    → 左侧菜单 "Get API Key"
+    → "Create API Key"
+    → 选择 Google Cloud 项目（或创建新项目）
+    → 复制生成的 API Key
+```
+
+> ⚠️ **安全提示**：API Key 类似密码，切勿提交到 Git 仓库。建议存储在环境变量或密钥管理工具中。
+
+**Step 3：确认 API Key 可用**
+
+```bash
+# 测试 API Key 是否有效（替换 YOUR_API_KEY）
+curl "https://generativelanguage.googleapis.com/v1beta/models?key=YOUR_API_KEY" | head -20
+```
+
+### 9.3 方法一：环境变量配置 + Claude Code 直接调用
+
+**Step 1：设置环境变量**
+
+```bash
+# macOS/Linux — 添加到 ~/.zshrc 或 ~/.bashrc
+echo 'export GOOGLE_AI_API_KEY="your-api-key-here"' >> ~/.zshrc
+source ~/.zshrc
+
+# Windows PowerShell
+[Environment]::SetEnvironmentVariable("GOOGLE_AI_API_KEY", "your-api-key-here", "User")
+
+# Windows CMD
+setx GOOGLE_AI_API_KEY "your-api-key-here"
+```
+
+**Step 2：在 Claude Code 中使用**
+
+配置完成后，在 Claude Code 中可以直接让 Claude 调用 Gemini API：
+
+```bash
+# 在 Claude Code 中执行
+claude "使用我的 GOOGLE_AI_API_KEY 环境变量，调用 Gemini API 生成以下 UI：
+一个项目管理仪表盘，包含：
+- 左侧边栏导航
+- 项目卡片网格
+- 统计数据行
+- 深色主题，蓝色强调色
+请生成完整的 HTML + CSS + JavaScript 代码，并保存到 dashboard.html"
+```
+
+Claude Code 会自动读取环境变量，构造 API 请求，生成代码并写入文件。
+
+**Step 3：进阶 — 创建专用脚本**
+
+在项目根目录创建 `scripts/generate-ui.sh`：
+
+```bash
+#!/bin/bash
+# generate-ui.sh — 通过 Gemini API 生成 UI 代码
+
+API_KEY="${GOOGLE_AI_API_KEY}"
+MODEL="gemini-2.5-flash"  # 或 gemini-2.5-pro
+
+if [ -z "$API_KEY" ]; then
+  echo "❌ 错误：请先设置 GOOGLE_AI_API_KEY 环境变量"
+  exit 1
+fi
+
+PROMPT="$1"
+OUTPUT="${2:-generated-ui.html}"
+
+if [ -z "$PROMPT" ]; then
+  echo "用法: ./generate-ui.sh '<UI 描述>' [输出文件名]"
+  echo "示例: ./generate-ui.sh 'A login page with social login buttons' login.html"
+  exit 1
+fi
+
+echo "🎨 正在通过 Gemini API 生成 UI..."
+
+# 构造系统提示词 — 模拟 Stitch 的行为
+SYSTEM_PROMPT="You are an expert UI designer and frontend developer.
+Generate production-quality HTML + CSS + JavaScript code based on the user's description.
+Follow these guidelines:
+- Use modern CSS (Flexbox/Grid, CSS Variables, animations)
+- Responsive design (mobile-first)
+- Clean semantic HTML5
+- Include inline styles or a <style> block
+- Output ONLY the complete HTML file, no explanations
+- Use Material Design 3 principles
+- Support both light and dark mode with CSS prefers-color-scheme"
+
+# 调用 Gemini API
+curl -s "https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${API_KEY}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "system_instruction": {
+      "parts": [{"text": "'"$SYSTEM_PROMPT"'"}]
+    },
+    "contents": [{
+      "parts": [{"text": "'"$PROMPT"'"}]
+    }],
+    "generationConfig": {
+      "temperature": 0.7,
+      "maxOutputTokens": 8192
+    }
+  }' | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+try:
+    text = data['candidates'][0]['content']['parts'][0]['text']
+    # 移除 markdown 代码块标记
+    text = text.replace('\`\`\`html', '').replace('\`\`\`', '')
+    print(text.strip())
+except (KeyError, IndexError):
+    print('Error: Failed to parse API response', file=sys.stderr)
+    print(json.dumps(data, indent=2), file=sys.stderr)
+    sys.exit(1)
+" > "$OUTPUT"
+
+echo "✅ UI 代码已生成: $OUTPUT"
+echo "📏 文件大小: $(wc -c < "$OUTPUT" | tr -d ' ') bytes"
+```
+
+赋予执行权限并使用：
+
+```bash
+chmod +x scripts/generate-ui.sh
+
+# 生成单个页面
+./scripts/generate-ui.sh "A modern login page with email/password fields, social login buttons (Google, GitHub), and a gradient background" login.html
+
+# 生成仪表盘
+./scripts/generate-ui.sh "Project management dashboard with sidebar, cards grid, stats row, dark theme" dashboard.html
+
+# 批量生成多个页面
+for page in "login:登录页" "dashboard:仪表盘" "profile:用户中心" "settings:设置页"; do
+  IFS=':' read -r name desc <<< "$page"
+  ./scripts/generate-ui.sh "A ${desc} with Material Design 3, responsive, dark mode support" "stitch-exports/${name}.html"
+done
+```
+
+### 9.4 方法二：MCP Server 集成（推荐）
+
+通过 MCP（Model Context Protocol）服务器，让 Claude Code **原生集成** Gemini API 调用能力。
+
+**Step 1：配置 Claude Code 的 MCP 设置**
+
+在项目根目录或用户目录下创建 MCP 配置文件：
+
+```bash
+# 项目级配置（仅当前项目生效）
+# 创建 .mcp.json 到项目根目录
+
+# 或全局配置（所有项目生效）
+# 编辑 ~/.claude/settings.json
+```
+
+**`.mcp.json` 配置内容**：
+
+```json
+{
+  "mcpServers": {
+    "google-gemini": {
+      "command": "npx",
+      "args": ["-y", "@anthropic-ai/mcp-gemini"],
+      "env": {
+        "GEMINI_API_KEY": "your-api-key-here"
+      }
+    }
+  }
+}
+```
+
+> 💡 也可以将 API Key 存储在环境变量中，避免硬编码：
+> ```json
+> "env": {
+>   "GEMINI_API_KEY": "${GOOGLE_AI_API_KEY}"
+> }
+> ```
+
+**Step 2：在 Claude Code 中使用**
+
+配置完成后重启 Claude Code，即可直接通过 MCP 调用 Gemini：
+
+```bash
+# 启动 Claude Code
+claude
+
+# 在 Claude Code 中直接请求 UI 生成
+> "通过 Gemini 生成一个电商首页的 UI 代码，包含：
+> - 顶部导航栏（Logo、搜索、购物车、用户头像）
+> - Hero Banner 轮播
+> - 商品分类网格
+> - 热门商品卡片列表
+> - 页脚
+> 输出为 React + Tailwind CSS 组件"
+```
+
+Claude Code 会通过 MCP Server 自动调用 Gemini API，获取生成的代码，并直接写入你的项目文件。
+
+**Step 3：进阶 — 自定义 MCP Server**
+
+如果需要更定制化的行为，可以创建自己的 MCP Server：
+
+```typescript
+// mcp-servers/stitch-ui-server/index.ts
+import { Server } from "@modelcontextprotocol/sdk/server";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio";
+import { z } from "zod";
+
+const server = new Server(
+  { name: "stitch-ui-generator", version: "1.0.0" },
+  { capabilities: { tools: {} } }
+);
+
+// 注册工具：生成 UI
+server.setRequestHandler("tools/list", async () => ({
+  tools: [
+    {
+      name: "generate_ui",
+      description:
+        "使用 Gemini API 生成 UI 代码（模拟 Google Stitch 功能）。输入 UI 描述，输出完整的 HTML/CSS/JS 或框架代码。",
+      inputSchema: {
+        type: "object",
+        properties: {
+          prompt: {
+            type: "string",
+            description: "UI 设计描述（中文或英文）",
+          },
+          framework: {
+            type: "string",
+            enum: ["html", "react", "vue", "angular", "flutter"],
+            description: "输出框架（默认 html）",
+          },
+          theme: {
+            type: "string",
+            enum: ["light", "dark", "auto"],
+            description: "主题模式（默认 auto）",
+          },
+          responsive: {
+            type: "boolean",
+            description: "是否响应式设计（默认 true）",
+          },
+        },
+        required: ["prompt"],
+      },
+    },
+    {
+      name: "generate_ui_from_image",
+      description: "上传图片/线框图，通过 Gemini API 生成对应的 UI 代码（类似 Stitch 的图片转代码功能）。",
+      inputSchema: {
+        type: "object",
+        properties: {
+          imagePath: {
+            type: "string",
+            description: "图片文件路径（本地路径）",
+          },
+          framework: {
+            type: "string",
+            enum: ["html", "react", "vue", "angular", "flutter"],
+            description: "输出框架（默认 html）",
+          },
+        },
+        required: ["imagePath"],
+      },
+    },
+  ],
+}));
+
+// 处理工具调用
+server.setRequestHandler("tools/call", async (request) => {
+  const { name, arguments: args } = request.params;
+
+  if (name === "generate_ui") {
+    const apiKey = process.env.GEMINI_API_KEY;
+    const model = "gemini-2.5-flash";
+
+    const frameworkMap: Record<string, string> = {
+      html: "HTML5 + CSS3 + Vanilla JavaScript",
+      react: "React + TypeScript + Tailwind CSS",
+      vue: "Vue 3 + TypeScript + Tailwind CSS",
+      angular: "Angular + TypeScript + SCSS",
+      flutter: "Flutter + Dart with Material Design 3",
+    };
+
+    const framework = (args.framework as string) || "html";
+    const theme = (args.theme as string) || "auto";
+    const responsive = args.responsive !== false;
+
+    const systemPrompt = `You are Google Stitch, an expert UI designer.
+Generate production-quality ${frameworkMap[framework]} code.
+Material Design 3 principles. ${responsive ? "Responsive mobile-first." : "Fixed width."}
+Theme: ${theme === "auto" ? "Support both light and dark mode via CSS prefers-color-scheme" : theme + " mode only"}.
+Output ONLY the complete code, no markdown fences, no explanations.`;
+
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          system_instruction: {
+            parts: [{ text: systemPrompt }],
+          },
+          contents: {
+            parts: [{ text: args.prompt as string }],
+          },
+          generationConfig: {
+            temperature: 0.7,
+            maxOutputTokens: 16384,
+          },
+        }),
+      }
+    );
+
+    const data = await response.json();
+    const code =
+      data.candidates?.[0]?.content?.parts?.[0]?.text ||
+      "Error: Failed to generate UI";
+
+    return {
+      content: [{ type: "text", text: code }],
+    };
+  }
+
+  if (name === "generate_ui_from_image") {
+    const apiKey = process.env.GEMINI_API_KEY;
+    const model = "gemini-2.5-flash"; // 使用多模态模型
+
+    // 读取图片并转为 base64
+    const fs = await import("fs");
+    const path = await import("path");
+    const imagePath = args.imagePath as string;
+    const imageBuffer = fs.readFileSync(imagePath);
+    const base64Image = imageBuffer.toString("base64");
+    const ext = path.extname(imagePath).toLowerCase();
+    const mimeType =
+      ext === ".png"
+        ? "image/png"
+        : ext === ".jpg" || ext === ".jpeg"
+          ? "image/jpeg"
+          : ext === ".webp"
+            ? "image/webp"
+            : "image/png";
+
+    const framework = (args.framework as string) || "html";
+
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: {
+            parts: [
+              {
+                text: `Analyze this UI design/wireframe and generate production-quality ${framework} code that faithfully reproduces it. Use Material Design 3. Output ONLY the code, no explanations.`,
+              },
+              {
+                inlineData: {
+                  mimeType: mimeType,
+                  data: base64Image,
+                },
+              },
+            ],
+          },
+          generationConfig: {
+            temperature: 0.5,
+            maxOutputTokens: 16384,
+          },
+        }),
+      }
+    );
+
+    const data = await response.json();
+    const code =
+      data.candidates?.[0]?.content?.parts?.[0]?.text ||
+      "Error: Failed to generate UI from image";
+
+    return {
+      content: [{ type: "text", text: code }],
+    };
+  }
+
+  throw new Error(`Unknown tool: ${name}`);
+});
+
+// 启动服务器
+const transport = new StdioServerTransport();
+server.connect(transport);
+```
+
+**配置到 Claude Code**：
+
+```json
+// .mcp.json
+{
+  "mcpServers": {
+    "stitch-ui": {
+      "command": "node",
+      "args": ["./mcp-servers/stitch-ui-server/index.js"],
+      "env": {
+        "GEMINI_API_KEY": "your-api-key-here"
+      }
+    }
+  }
+}
+```
+
+### 9.5 方法三：Python 封装工具
+
+创建一个 Python 工具脚本，在 Claude Code 中通过 Bash 工具调用：
+
+```python
+# scripts/stitch_api.py
+"""Stitch-like UI Generator — 通过 Gemini API 模拟 Stitch 功能"""
+
+import os
+import sys
+import json
+import argparse
+import urllib.request
+import urllib.error
+from pathlib import Path
+
+API_KEY = os.environ.get("GOOGLE_AI_API_KEY", "")
+API_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
+
+FRAMEWORKS = {
+    "html": "HTML5 + CSS3 + Vanilla JavaScript, inline styles in <style> block",
+    "react": "React functional components + TypeScript + Tailwind CSS classes",
+    "vue": "Vue 3 Single File Components + TypeScript + Tailwind CSS",
+    "angular": "Angular standalone component + TypeScript + SCSS",
+    "flutter": "Flutter + Dart widgets with Material Design 3",
+}
+
+def generate_ui(prompt: str, framework: str = "html", model: str = "gemini-2.5-flash") -> str:
+    """调用 Gemini API 生成 UI 代码"""
+    if not API_KEY:
+        print("❌ 错误：请设置 GOOGLE_AI_API_KEY 环境变量", file=sys.stderr)
+        sys.exit(1)
+
+    system_prompt = f"""You are Google Stitch, an expert UI designer and frontend developer.
+
+Generate production-quality code in: {FRAMEWORKS.get(framework, FRAMEWORKS["html"])}
+Follow these strict rules:
+1. Material Design 3 principles (components, spacing, elevation)
+2. Fully responsive (mobile-first, breakpoints at 640px, 768px, 1024px, 1280px)
+3. Support light and dark mode via CSS prefers-color-scheme
+4. Clean, semantic structure with proper accessibility attributes
+5. Smooth transitions and micro-animations
+6. Output ONLY the complete code — no markdown fences, no explanations, no comments about what you're doing"""
+
+    payload = {
+        "system_instruction": {"parts": [{"text": system_prompt}]},
+        "contents": {"parts": [{"text": prompt}]},
+        "generationConfig": {
+            "temperature": 0.7,
+            "topP": 0.95,
+            "topK": 40,
+            "maxOutputTokens": 16384,
+        },
+    }
+
+    url = f"{API_BASE}/{model}:generateContent?key={API_KEY}"
+    data = json.dumps(payload).encode("utf-8")
+
+    req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
+
+    try:
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            result = json.loads(resp.read().decode("utf-8"))
+            code = result["candidates"][0]["content"]["parts"][0]["text"]
+            # 清理 markdown 代码块标记
+            code = code.replace("```html", "").replace("```tsx", "").replace("```vue", "").replace("```dart", "").replace("```", "")
+            return code.strip()
+    except urllib.error.HTTPError as e:
+        error_body = e.read().decode("utf-8")
+        print(f"❌ API 错误 ({e.code}): {error_body}", file=sys.stderr)
+        sys.exit(1)
+    except (KeyError, IndexError) as e:
+        print(f"❌ 解析错误: {e}", file=sys.stderr)
+        print(json.dumps(result, indent=2, ensure_ascii=False), file=sys.stderr)
+        sys.exit(1)
+
+
+def generate_from_image(image_path: str, framework: str = "html", model: str = "gemini-2.5-flash") -> str:
+    """上传图片/线框图生成 UI 代码"""
+    import base64
+
+    if not API_KEY:
+        print("❌ 错误：请设置 GOOGLE_AI_API_KEY 环境变量", file=sys.stderr)
+        sys.exit(1)
+
+    path = Path(image_path)
+    if not path.exists():
+        print(f"❌ 文件不存在: {image_path}", file=sys.stderr)
+        sys.exit(1)
+
+    ext = path.suffix.lower()
+    mime_map = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp"}
+    mime_type = mime_map.get(ext, "image/png")
+
+    with open(path, "rb") as f:
+        b64_data = base64.b64encode(f.read()).decode("utf-8")
+
+    payload = {
+        "contents": {
+            "parts": [
+                {
+                    "text": f"Analyze this UI design/wireframe/screenshot and reproduce it faithfully as production-quality {FRAMEWORKS.get(framework, FRAMEWORKS['html'])} code. Material Design 3. Responsive. Output ONLY the complete code."
+                },
+                {
+                    "inlineData": {
+                        "mimeType": mime_type,
+                        "data": b64_data,
+                    }
+                },
+            ]
+        },
+        "generationConfig": {
+            "temperature": 0.5,
+            "maxOutputTokens": 16384,
+        },
+    }
+
+    url = f"{API_BASE}/{model}:generateContent?key={API_KEY}"
+    data = json.dumps(payload).encode("utf-8")
+
+    req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
+
+    try:
+        with urllib.request.urlopen(req, timeout=120) as resp:
+            result = json.loads(resp.read().decode("utf-8"))
+            code = result["candidates"][0]["content"]["parts"][0]["text"]
+            code = code.replace("```html", "").replace("```tsx", "").replace("```vue", "").replace("```dart", "").replace("```", "")
+            return code.strip()
+    except urllib.error.HTTPError as e:
+        error_body = e.read().decode("utf-8")
+        print(f"❌ API 错误 ({e.code}): {error_body}", file=sys.stderr)
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Stitch-like UI Generator via Gemini API")
+    subparsers = parser.add_subparsers(dest="command")
+
+    # generate 命令
+    gen_parser = subparsers.add_parser("generate", help="通过文字描述生成 UI")
+    gen_parser.add_argument("prompt", help="UI 设计描述")
+    gen_parser.add_argument("-f", "--framework", default="html", choices=FRAMEWORKS.keys())
+    gen_parser.add_argument("-o", "--output", help="输出文件路径")
+    gen_parser.add_argument("-m", "--model", default="gemini-2.5-flash")
+
+    # image 命令
+    img_parser = subparsers.add_parser("image", help="从图片/线框图生成 UI")
+    img_parser.add_argument("image", help="图片文件路径")
+    img_parser.add_argument("-f", "--framework", default="html", choices=FRAMEWORKS.keys())
+    img_parser.add_argument("-o", "--output", help="输出文件路径")
+    img_parser.add_argument("-m", "--model", default="gemini-2.5-flash")
+
+    args = parser.parse_args()
+
+    if args.command == "generate":
+        print(f"🎨 正在生成 UI ({args.framework})...", file=sys.stderr)
+        code = generate_ui(args.prompt, args.framework, args.model)
+        if args.output:
+            Path(args.output).parent.mkdir(parents=True, exist_ok=True)
+            Path(args.output).write_text(code, encoding="utf-8")
+            print(f"✅ 已保存到: {args.output}", file=sys.stderr)
+        else:
+            print(code)
+
+    elif args.command == "image":
+        print(f"🖼️ 正在从图片生成 UI ({args.framework})...", file=sys.stderr)
+        code = generate_from_image(args.image, args.framework, args.model)
+        if args.output:
+            Path(args.output).parent.mkdir(parents=True, exist_ok=True)
+            Path(args.output).write_text(code, encoding="utf-8")
+            print(f"✅ 已保存到: {args.output}", file=sys.stderr)
+        else:
+            print(code)
+
+    else:
+        parser.print_help()
+```
+
+**使用方式**：
+
+```bash
+# 设置 API Key
+export GOOGLE_AI_API_KEY="your-api-key"
+
+# 文字生成 UI
+python scripts/stitch_api.py generate "A modern e-commerce homepage with hero banner, product grid, category navigation" -f react -o components/HomePage.tsx
+
+# 图片生成 UI
+python scripts/stitch_api.py image ./wireframes/login.png -f react -o components/LoginPage.tsx
+
+# 在 Claude Code 中调用
+claude "运行 python scripts/stitch_api.py generate '项目管理仪表盘，侧边栏+卡片+统计行' -f react -o dashboard.tsx，然后基于生成的代码集成到项目中"
+```
+
+### 9.6 三种方法对比与选择建议
+
+| 维度 | 方法一：环境变量 + 脚本 | 方法二：MCP Server | 方法三：Python 工具 |
+|------|------------------------|-------------------|-------------------|
+| **配置难度** | ⭐ 简单 | ⭐⭐ 中等 | ⭐⭐ 中等 |
+| **集成深度** | ⭐⭐ 浅 | ⭐⭐⭐⭐⭐ 最深 | ⭐⭐⭐ 中等 |
+| **使用体验** | 需手动运行脚本 | Claude Code 原生调用 | Claude Code 调用 Bash |
+| **图片支持** | 需额外处理 | ✅ 原生支持 | ✅ 内置支持 |
+| **定制性** | ⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ |
+| **适合场景** | 快速验证、简单任务 | 日常开发、深度集成 | 批量生成、CI/CD |
+
+> 💡 **推荐方案**：日常开发使用 **方法二（MCP Server）**，需要批量生成或 CI/CD 集成时使用 **方法三（Python 工具）**。
+
+### 9.7 API 调用成本估算
+
+| Gemini 模型 | 免费额度 | 输入价格 | 输出价格 |
+|-------------|---------|---------|---------|
+| **gemini-2.5-flash** | 免费层有 RPM/RPD 限制 | $0.15/1M tokens | $0.60/1M tokens |
+| **gemini-2.5-pro** | 免费层有 RPM/RPD 限制 | $1.25/1M tokens | $10.00/1M tokens |
+
+> 💡 **成本建议**：日常 UI 生成使用 `gemini-2.5-flash` 即可，成本极低。复杂/精细的 UI 需求可升级到 `gemini-2.5-pro`。
+
+### 9.8 最佳实践：Stitch API + Claude Code 联动
+
+```bash
+# 1. 通过 API 快速生成 UI 原型
+claude "使用 stitch_api.py 生成登录页 UI: python scripts/stitch_api.py generate 'Modern login with social buttons' -f react -o stitch-exports/login.tsx"
+
+# 2. 让 Claude Code 深度优化生成的代码
+claude "查看 stitch-exports/login.tsx，然后：
+1. 添加 TypeScript 类型定义
+2. 集成 React Hook Form + Zod 验证
+3. 连接到 /api/auth/login 端点
+4. 添加错误处理和加载状态
+5. 将组件移到 src/components/auth/LoginForm.tsx"
+
+# 3. 批量生成 → 逐个优化
+claude "批量为以下页面生成 UI：
+- dashboard: 仪表盘
+- projects: 项目列表
+- settings: 设置页
+使用 stitch_api.py 生成后，逐个优化为生产级组件"
+```
+
+---
+
+## 10. 常见问题与故障排除
 
 ### Q1：Stitch 生成的代码质量如何？
 
@@ -1218,6 +1902,23 @@ claude "配置 GitHub Actions CI/CD"
 > claude "将这个项目改造为支持 i18n（中/英/日），使用 next-intl"
 > ```
 
+### Q7：API 调用返回 429 错误怎么办？
+
+> 这是速率限制（Rate Limit）错误。解决方案：
+> 1. **降低调用频率**：添加请求间隔（如 `sleep 2`）
+> 2. **升级计划**：在 Google AI Studio 中升级到付费计划
+> 3. **换用 Flash 模型**：`gemini-2.5-flash` 的速率限制更宽松
+> 4. **指数退避**：在脚本中实现自动重试逻辑
+
+### Q8：Gemini API 生成的 UI 质量不如 Stitch 网页版？
+
+> 这是正常的，因为 Stitch 网页版经过了专门的 fine-tuning 和后处理。优化建议：
+> 1. **优化 System Prompt**：更详细地描述设计规范和约束
+> 2. **使用 Pro 模型**：`gemini-2.5-pro` 生成质量更高
+> 3. **提供参考图片**：使用图片输入比纯文字描述效果更好
+> 4. **分步生成**：先布局，再组件，最后样式
+> 5. **多次迭代**：对生成结果进行多轮优化提示
+
 ---
 
 ## 总结
@@ -1248,8 +1949,11 @@ claude "配置 GitHub Actions CI/CD"
 ## 参考资源
 
 - [Google Stitch 官方网站](https://stitch.withgoogle.com/)
+- [Google AI Studio（获取 Gemini API Key）](https://aistudio.google.com/)
+- [Gemini API 官方文档](https://ai.google.dev/gemini-api/docs)
 - [Google I/O 2025 公告](https://io.google/2025/)
 - [Material Design 3 文档](https://m3.material.io/)
+- [MCP 协议文档](https://modelcontextprotocol.io/)
 - [[Claude Code安装指南-GLM模型]] — Claude Code 安装
 - [[Claude Code 必装 Skills 推荐指南]] — 推荐 Skills
 - [[Claude Code Web-UI 详细指南]] — Web UI 使用

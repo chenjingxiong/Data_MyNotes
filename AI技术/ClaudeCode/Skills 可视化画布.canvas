@@ -1,0 +1,36 @@
+{
+	"nodes":[
+		{"id":"title","type":"text","x":-400,"y":-500,"width":800,"height":80,"text":"# 🎯 Claude Code Skills 可视化画布\n> 拖拽、连线、探索 Skills 生态的关系网络","color":"5"},
+		{"id":"tier1-header","type":"text","x":-700,"y":-350,"width":240,"height":60,"text":"## 🟢 基础能力层\n建议全员安装","color":"4"},
+		{"id":"agent-browser","type":"text","x":-700,"y":-260,"width":220,"height":120,"text":"### 🌐 Agent Browser\n**解决**：Claude 无法操作浏览器\n\n**核心能力**：\n- 自动打开网页、点击、填表\n- 支持截图与数据抓取\n- Playwright 底层\n\n`/install-skill agent-browser`","color":"4"},
+		{"id":"superpowers","type":"text","x":-460,"y":-260,"width":220,"height":120,"text":"### 🧠 Superpowers\n**解决**：缺乏结构化工作流\n\n**核心能力**：\n- 强制头脑风暴\n- 自动发现相关 Skill\n- TodoWrite 集成\n\n`/install-skill superpowers`","color":"4"},
+		{"id":"pdf","type":"text","x":-700,"y":-120,"width":220,"height":100,"text":"### 📄 PDF Processing\n**解决**：无法创建/处理 PDF\n\n- 生成真正的 PDF\n- 提取文本和表格\n\n`/install-skill pdf`","color":"4"},
+		{"id":"tavily","type":"text","x":-460,"y":-120,"width":220,"height":100,"text":"### 🔍 Tavily Search\n**解决**：搜索结果不够精准\n\n- AI 专用搜索 API\n- 结构化返回\n- 深度搜索模式\n\nMCP 配置","color":"4"},
+		{"id":"tier2-header","type":"text","x":-200,"y":-350,"width":480,"height":60,"text":"## 🟡 效率倍增层\n开发者强烈推荐","color":"2"},
+		{"id":"frontend-design","type":"text","x":-200,"y":-260,"width":220,"height":120,"text":"### 🎨 Frontend Design\n**解决**：AI 生成的 UI 千篇一律\n\n**核心能力**：\n- 高质量 HTML/CSS/React\n- 内建设计哲学\n- 去AI味\n\n`/install-skill frontend-design`","color":"2"},
+		{"id":"context7","type":"text","x":40,"y":-260,"width":220,"height":120,"text":"### 📚 Context7\n**解决**：API 调用幻觉\n\n**核心能力**：\n- 实时拉取最新文档\n- 支持最新框架\n- 彻底消除 API 幻觉\n\n`npx context7 --claude`","color":"2"},
+		{"id":"sys-debug","type":"text","x":-200,"y":-120,"width":220,"height":100,"text":"### 🐛 Systematic Debugging\n**解决**：调试靠猜效率低\n\n- 四阶段科学调试\n- 信息收集→假设→隔离→修复\n\n`/install-skill systematic-debugging`","color":"2"},
+		{"id":"tdd","type":"text","x":40,"y":-120,"width":220,"height":100,"text":"### 🧪 TDD Workflow\n**解决**：测试驱动难以贯彻\n\n- 红-绿-重构循环\n- 80%+ 覆盖率\n- 自动生成测试\n\n`/install-skill tdd-workflow`","color":"2"},
+		{"id":"tier3-header","type":"text","x":320,"y":-350,"width":400,"height":60,"text":"## 🔴 专业场景层\n按需安装 = 如虎添翼","color":"1"},
+		{"id":"deep-research","type":"text","x":320,"y":-260,"width":220,"height":120,"text":"### 🔬 Deep Research\n**解决**：多源深度调研\n\n**核心能力**：\n- 多源并行搜索\n- 自动聚合去重\n- 带引用的报告\n\n`/install-skill deep-research`","color":"1"},
+		{"id":"docx","type":"text","x":560,"y":-260,"width":220,"height":120,"text":"### 📝 DOCX\n**解决**：生成 Word 文档\n\n**核心能力**：\n- 创建/编辑 .docx\n- 跟踪修订\n- 复杂格式化\n\n`/install-skill docx`","color":"1"},
+		{"id":"security","type":"text","x":320,"y":-120,"width":220,"height":100,"text":"### 🛡️ Security Review\n**解决**：安全漏洞检测\n\n- OWASP Top 10\n- Secrets 泄露检测\n- 分级风险报告\n\n包含在 ECC 中","color":"1"},
+		{"id":"mcp-builder","type":"text","x":560,"y":-120,"width":220,"height":100,"text":"### 🔧 MCP Builder\n**解决**：自定义工具构建\n\n- MCP Server 生成\n- 协议处理自动化\n- 最佳实践内置\n\n`/install-skill mcp-builder`","color":"1"},
+		{"id":"combo-header","type":"text","x":-500,"y":40,"width":1200,"height":60,"text":"## 🔄 Skills 组合方案 — 协同效应","color":"5"},
+		{"id":"combo1","type":"text","x":-500,"y":120,"width":270,"height":100,"text":"### 🔍 搜索 → 抓取\n**Tavily + Firecrawl**\n\nTavily 找到目标网页\n→ Firecrawl 抓取完整内容\n→ 结构化 Markdown 输出","color":"6"},
+		{"id":"combo2","type":"text","x":-200,"y":120,"width":270,"height":100,"text":"### 📚 零幻觉开发\n**Context7 + TDD**\n\nContext7 拉取最新 API\n→ TDD 先写测试后实现\n→ 零幻觉 + 高覆盖","color":"6"},
+		{"id":"combo3","type":"text","x":100,"y":120,"width":270,"height":100,"text":"### 🎨 设计闭环\n**Frontend + Browser**\n\nFrontend Design 生成 UI\n→ Agent Browser 自动截图\n→ 视觉对比验证","color":"6"},
+		{"id":"combo4","type":"text","x":400,"y":120,"width":270,"height":100,"text":"### 🔬 调研交付\n**Research + DOCX**\n\nDeep Research 多源调研\n→ DOCX 生成 Word 报告\n→ 交付级文档输出","color":"6"}
+	],
+	"edges":[
+		{"id":"e1","fromNode":"tavily","fromSide":"bottom","toNode":"combo1","toSide":"top","label":"搜索","color":"4"},
+		{"id":"e2","fromNode":"context7","fromSide":"bottom","toNode":"combo2","toSide":"top","label":"文档","color":"2"},
+		{"id":"e3","fromNode":"frontend-design","fromSide":"bottom","toNode":"combo3","toSide":"top","label":"UI","color":"2"},
+		{"id":"e4","fromNode":"deep-research","fromSide":"bottom","toNode":"combo4","toSide":"top","label":"调研","color":"1"},
+		{"id":"e5","fromNode":"agent-browser","fromSide":"bottom","toNode":"combo3","toSide":"top","label":"截图","color":"4"},
+		{"id":"e6","fromNode":"docx","fromSide":"bottom","toNode":"combo4","toSide":"top","label":"输出","color":"1"},
+		{"id":"e7","fromNode":"tdd","fromSide":"bottom","toNode":"combo2","toSide":"top","label":"测试","color":"2"},
+		{"id":"e8","fromNode":"tier1-header","fromSide":"right","toNode":"tier2-header","toSide":"left","label":"基础打底 → 效率加速"},
+		{"id":"e9","fromNode":"tier2-header","fromSide":"right","toNode":"tier3-header","toSide":"left","label":"效率提升 → 专业定制"}
+	]
+}
