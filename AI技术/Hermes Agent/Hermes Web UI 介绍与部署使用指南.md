@@ -294,16 +294,16 @@ docker compose ps
 
 ## 📋 CLI 命令参考
 
-| 命令 | 说明 |
-|------|------|
-| `hermes-web-ui start` | 后台启动（守护进程模式） |
-| `hermes-web-ui start --port 9000` | 指定端口启动 |
-| `hermes-web-ui stop` | 停止后台进程 |
-| `hermes-web-ui restart` | 重启后台进程 |
-| `hermes-web-ui status` | 检查运行状态 |
-| `hermes-web-ui update` | 更新到最新版本并重启 |
-| `hermes-web-ui -v` | 查看版本号 |
-| `hermes-web-ui -h` | 查看帮助信息 |
+| 命令                                | 说明           |
+| --------------------------------- | ------------ |
+| `hermes-web-ui start`             | 后台启动（守护进程模式） |
+| `hermes-web-ui start --port 9000` | 指定端口启动       |
+| `hermes-web-ui stop`              | 停止后台进程       |
+| `hermes-web-ui restart`           | 重启后台进程       |
+| `hermes-web-ui status`            | 检查运行状态       |
+| `hermes-web-ui update`            | 更新到最新版本并重启   |
+| `hermes-web-ui -v`                | 查看版本号        |
+| `hermes-web-ui -h`                | 查看帮助信息       |
 
 ---
 
