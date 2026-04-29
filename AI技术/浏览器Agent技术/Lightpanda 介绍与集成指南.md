@@ -7,6 +7,7 @@
 - [Claude/MCP 集成](#claudemcp-集成)
 - [OpenClaw 集成](#openclaw-集成)
 - [快速开始](#快速开始)
+- [Docker 部署指南](#docker-部署指南)
 - [代码示例](#代码示例)
 - [参考资源](#参考资源)
 
@@ -213,6 +214,228 @@ const { chromium } = require('playwright');
   await browser.close();
 })();
 ```
+
+---
+
+## Docker 部署指南
+
+> [!tip] 推荐方式
+> Docker 是部署 Lightpanda 的**推荐方式**，无需安装 Zig 编译器或本地构建环境，一条命令即可启动。
+
+### 1. 基础部署
+
+#### 拉取镜像并运行
+
+```bash
+# 拉取最新镜像
+docker pull lightpanda/lightpanda:latest
+
+# 基础启动（CDP 端口 9222）
+docker run -d \
+  --name lightpanda \
+  -p 9222:9222 \
+  lightpanda/lightpanda:latest
+```
+
+#### 验证服务是否正常运行
+
+```bash
+# 检查容器状态
+docker ps
+
+# 测试 CDP 端点
+curl http://localhost:9222/json/version
+
+# 期望返回类似：
+# {
+#   "Browser": "Lightpanda",
+#   "Protocol-Version": "1.3",
+#   "webSocketDebuggerUrl": "ws://localhost:9222/"
+# }
+```
+
+### 2. Docker Compose 部署（推荐生产使用）
+
+创建 `docker-compose.yml` 文件：
+
+```yaml
+version: "3.8"
+
+services:
+  lightpanda:
+    image: lightpanda/lightpanda:latest
+    container_name: lightpanda
+    ports:
+      - "9222:9222"
+    restart: unless-stopped
+    environment:
+      # 可选环境变量配置
+      - LIGHTPANDA_HOST=0.0.0.0
+      - LIGHTPANDA_PORT=9222
+    deploy:
+      resources:
+        limits:
+          memory: 512M    # Lightpanda 内存占用极低
+          cpus: "1.0"
+        reservations:
+          memory: 64M
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9222/json/version"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+```
+
+```bash
+# 启动服务
+docker compose up -d
+
+# 查看日志
+docker compose logs -f lightpanda
+
+# 停止服务
+docker compose down
+```
+
+### 3. 与其他服务联合部署
+
+#### Lightpanda + Playwright 微服务
+
+```yaml
+version: "3.8"
+
+services:
+  lightpanda:
+    image: lightpanda/lightpanda:latest
+    container_name: lightpanda
+    ports:
+      - "9222:9222"
+    restart: unless-stopped
+    networks:
+      - browser-net
+
+  playwright-service:
+    build: ./playwright-service
+    container_name: playwright-svc
+    ports:
+      - "3000:3000"
+    environment:
+      - BROWSER_WS_ENDPOINT=ws://lightpanda:9222
+    depends_on:
+      lightpanda:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - browser-net
+
+networks:
+  browser-net:
+    driver: bridge
+```
+
+> [!note] 注意
+> 在 Docker Compose 网络内，服务间使用**容器名**（如 `ws://lightpanda:9222`）而非 `localhost` 通信。
+
+#### Lightpanda + Claude MCP Agent
+
+```yaml
+version: "3.8"
+
+services:
+  lightpanda:
+    image: lightpanda/lightpanda:latest
+    container_name: lightpanda
+    ports:
+      - "9222:9222"
+    restart: unless-stopped
+    networks:
+      - agent-net
+
+  mcp-server:
+    build: ./agent-skill
+    container_name: lightpanda-mcp
+    environment:
+      - LIGHTPANDA_URL=http://lightpanda:9222
+    ports:
+      - "3001:3000"
+    depends_on:
+      - lightpanda
+    restart: unless-stopped
+    networks:
+      - agent-net
+
+networks:
+  agent-net:
+    driver: bridge
+```
+
+### 4. 常用 Docker 操作
+
+```bash
+# 查看运行日志
+docker logs -f lightpanda
+
+# 重启容器
+docker restart lightpanda
+
+# 更新到最新版本
+docker pull lightpanda/lightpanda:latest
+docker stop lightpanda && docker rm lightpanda
+docker run -d --name lightpanda -p 9222:9222 lightpanda/lightpanda:latest
+
+# 进入容器调试
+docker exec -it lightpanda /bin/sh
+
+# 清理旧镜像
+docker image prune -f
+```
+
+### 5. 自定义 Dockerfile 构建
+
+如果需要基于源码自定义构建：
+
+```dockerfile
+# 多阶段构建
+FROM ziglang/zig:latest AS builder
+
+WORKDIR /app
+RUN git clone https://github.com/nicepkg/lightpanda.git .
+RUN zig build -Doptimize=ReleaseFast
+
+# 最终镜像
+FROM debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /app/zig-out/bin/lightpanda /usr/local/bin/lightpanda
+
+EXPOSE 9222
+ENTRYPOINT ["lightpanda"]
+CMD ["--host", "0.0.0.0", "--port", "9222"]
+```
+
+```bash
+# 构建自定义镜像
+docker build -t lightpanda:custom .
+
+# 运行自定义镜像
+docker run -d -p 9222:9222 lightpanda:custom
+```
+
+### 6. 生产环境注意事项
+
+| 项目 | 建议 |
+|------|------|
+| **资源限制** | 设置 `memory: 512M` 即可满足大多数场景 |
+| **健康检查** | 配置 `/json/version` 端点进行健康探测 |
+| **重启策略** | 使用 `unless-stopped` 或 `always` |
+| **网络隔离** | 使用自定义 Docker 网络，不暴露不必要的端口 |
+| **日志管理** | 配置 `logging.driver` 或挂载日志卷 |
+| **版本固定** | 生产环境建议使用固定版本 tag 而非 `latest` |
 
 ---
 
