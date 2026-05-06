@@ -133,7 +133,24 @@ services:
 
 volumes:
   nexterm:
+
+官网： 
+ services:
+  nexterm:
+    image: germannewsmaker/nexterm
+    container_name: nexterm
+    network_mode: host
+    restart: always
+    environment:
+      - ENCRYPTION_KEY=3059dc2e36f391a64fsfsdfsafd3sadfasdfsdfd2ca0136bd6113491
+    volumes:
+      - ./nexterm-data:/app/data
+        
+
 ```
+
+
+
 
 启动：
 

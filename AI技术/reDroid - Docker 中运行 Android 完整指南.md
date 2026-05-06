@@ -243,16 +243,16 @@ docker run -itd --rm --privileged \
 
 ### 完整参数列表
 
-| 参数 | 说明 | 默认值 |
-|------|------|--------|
-| `androidboot.redroid_width` | 显示宽度（像素） | `720` |
-| `androidboot.redroid_height` | 显示高度（像素） | `1280` |
-| `androidboot.redroid_fps` | 显示帧率 | GPU 启用: `30`<br>GPU 未启用: `15` |
-| `androidboot.redroid_dpi` | 屏幕密度 | `320` |
-| `androidboot.use_memfd` | 使用 `memfd` 替代已弃用的 `ashmem` | `false` |
-| `androidboot.use_redroid_overlayfs` | 使用 `overlayfs` 共享 data 分区<br>`/data-base`: 共享数据<br>`/data-diff`: 私有数据 | `0` |
-| `androidboot.redroid_gpu_mode` | GPU 模式：`auto` / `host` / `guest` | `guest` |
-| `androidboot.redroid_gpu_node` | GPU 设备节点 | 自动检测 |
+| 参数                                  | 说明                                                                    | 默认值                           |
+| ----------------------------------- | --------------------------------------------------------------------- | ----------------------------- |
+| `androidboot.redroid_width`         | 显示宽度（像素）                                                              | `720`                         |
+| `androidboot.redroid_height`        | 显示高度（像素）                                                              | `1280`                        |
+| `androidboot.redroid_fps`           | 显示帧率                                                                  | GPU 启用: `30`<br>GPU 未启用: `15` |
+| `androidboot.redroid_dpi`           | 屏幕密度                                                                  | `320`                         |
+| `androidboot.use_memfd`             | 使用 `memfd` 替代已弃用的 `ashmem`                                            | `false`                       |
+| `androidboot.use_redroid_overlayfs` | 使用 `overlayfs` 共享 data 分区<br>`/data-base`: 共享数据<br>`/data-diff`: 私有数据 | `0`                           |
+| `androidboot.redroid_gpu_mode`      | GPU 模式：`auto` / `host` / `guest`                                      | `guest`                       |
+| `androidboot.redroid_gpu_node`      | GPU 设备节点                                                              | 自动检测                          |
 
 ### 网络配置参数
 
