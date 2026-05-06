@@ -781,12 +781,12 @@ api_endpoint = "http://localhost:8080/genai"
 
 ### URL 映射速查表
 
-| 提供商 | 原始 URL | Bifrost URL |
-|--------|---------|-------------|
-| OpenAI | `https://api.openai.com` | `http://localhost:8080/openai` |
-| Anthropic | `https://api.anthropic.com` | `http://localhost:8080/anthropic` |
-| Google GenAI | `https://generativelanguage.googleapis.com` | `http://localhost:8080/genai` |
-| Azure OpenAI | `https://<resource>.openai.azure.com` | `http://localhost:8080/azure` |
+| 提供商          | 原始 URL                                      | Bifrost URL                       |
+| ------------ | ------------------------------------------- | --------------------------------- |
+| OpenAI       | `https://api.openai.com`                    | `http://localhost:8080/openai`    |
+| Anthropic    | `https://api.anthropic.com`                 | `http://localhost:8080/anthropic` |
+| Google GenAI | `https://generativelanguage.googleapis.com` | `http://localhost:8080/genai`     |
+| Azure OpenAI | `https://<resource>.openai.azure.com`       | `http://localhost:8080/azure`     |
 
 ---
 
