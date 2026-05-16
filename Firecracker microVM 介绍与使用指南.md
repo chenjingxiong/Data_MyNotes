@@ -1,0 +1,606 @@
+---
+title: Firecracker microVM 介绍与使用指南
+date: 2026-05-05
+tags:
+  - firecracker
+  - microvm
+  - virtualization
+  - kvm
+  - serverless
+  - rust
+  - cloud-native
+  - security
+  - container-isolation
+  - devops
+url: https://github.com/firecracker-microvm/firecracker
+related:
+  - "[[Firecracker 生态与配合项目指南]]"
+  - "[[RustFS 介绍与部署指南]]"
+---
+
+# Firecracker microVM 介绍与使用指南
+
+> [!info] 官方链接
+> - **GitHub**: https://github.com/firecracker-microvm/firecracker
+> - **官网**: https://firecracker-microvm.github.io/
+> - **文档**: https://github.com/firecracker-microvm/firecracker/tree/main/docs
+> - **API 规范**: https://github.com/firecracker-microvm/firecracker/blob/main/docs/api-spec/swagger.yaml
+> - **许可证**: Apache 2.0
+> - **语言**: Rust
+> - **相关项目**: [[Firecracker 生态与配合项目指南]]
+
+---
+
+## 1. 什么是 Firecracker？
+
+**Firecracker** 是由 **AWS（Amazon Web Services）** 开发的开源**轻量级虚拟机监视器（VMM）**，基于 Linux **KVM** 构建，专为**无服务器（Serverless）**和**容器级隔离**场景设计。它能在不到 **125ms** 内启动一个完整的虚拟机（microVM），提供与传统虚拟机同等的安全隔离，同时拥有接近容器的速度和资源开销。
+
+### 核心理念
+
+```
+传统虚拟机:  功能完备 → 重量级 → 启动慢 (秒级) → 强隔离
+容器:       最小化   → 轻量级 → 启动快 (毫秒级) → 共享内核
+microVM:    最小化   → 轻量级 → 启动快 (~125ms) → 强隔离 (KVM)
+```
+
+Firecracker 的设计哲学是 **"极简设备模型"**——只模拟工作负载真正需要的硬件设备（virtio-net、virtio-block、串口控制台），不模拟任何传统遗留设备（无 USB、无 VGA、无 ACPI 表），从而大幅缩小攻击面并加速启动。
+
+> [!tip] 为什么选择 Firecracker？
+> 如果你需要 **容器的速度** + **虚拟机的安全隔离**，Firecracker 是目前最成熟的开源方案。AWS Lambda 和 AWS Fargate 的生产环境均基于 Firecracker 运行。
+
+---
+
+## 2. 核心特性
+
+| 特性 | 说明 |
+|---|---|
+| **极速启动** | microVM 启动时间 < 125ms，从快照恢复 < 1ms |
+| **极低开销** | 每个 microVM 仅额外占用 ~5MB 内存 |
+| **强安全隔离** | 基于 KVM 硬件虚拟化，每个 VM 独立内核空间 |
+| **极简设备模型** | 仅支持 virtio-net、virtio-block、串口，攻击面极小 |
+| **速率限制** | 内置网络带宽、IOPS、磁盘吞吐量的精细限流 |
+| **快照与恢复** | 支持创建内存快照 + 磁盘快照，可瞬间克隆/恢复 |
+| **RESTful API** | 通过 Unix Socket 暴露 JSON API，易于集成 |
+| **seccomp 沙箱** | VMM 进程运行在严格的 seccomp 过滤器下 |
+| **Jailer 安全** | 内置 jailer 工具提供 chroot + 降权 + cgroup 隔离 |
+| **多版本支持** | 长期稳定的版本策略，支持滚动升级 |
+
+---
+
+## 3. 架构详解
+
+### 3.1 整体架构
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     宿主机 (Linux + KVM)                         │
+│                                                                  │
+│  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────┐  │
+│  │  Firecracker VMM │  │  Firecracker VMM │  │    ...       │  │
+│  │  (Rust 进程)     │  │  (Rust 进程)     │  │  N 个 VMM    │  │
+│  │  ┌────────────┐  │  │  ┌────────────┐  │  │              │  │
+│  │  │  Guest #1  │  │  │  │  Guest #2  │  │  │              │  │
+│  │  │  ┌──────┐  │  │  │  │  ┌──────┐  │  │  │              │  │
+│  │  │  │ App  │  │  │  │  │  │ App  │  │  │  │              │  │
+│  │  │  ├──────┤  │  │  │  │  ├──────┤  │  │  │              │  │
+│  │  │  │Guest │  │  │  │  │  │Guest │  │  │  │              │  │
+│  │  │  │Kernel│  │  │  │  │  │Kernel│  │  │  │              │  │
+│  │  │  └──────┘  │  │  │  │  └──────┘  │  │  │              │  │
+│  │  └────────────┘  │  │  └────────────┘  │  │              │  │
+│  │  ▲ Unix Socket   │  │                  │  │              │  │
+│  └──┼───────────────┘  └──────────────────┘  └──────────────┘  │
+│     │ API 请求                                              │  │
+│  ┌──┴───────────┐  ┌─────────────┐  ┌───────────────────────┐  │
+│  │   Jailer     │  │   firectl   │  │  firecracker-go-sdk   │  │
+│  │  (安全沙箱)  │  │  (CLI 工具) │  │  (Go 程序化调用)       │  │
+│  └──────────────┘  └─────────────┘  └───────────────────────┘  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### 3.2 microVM 内部结构
+
+```
+┌─────────────────────────────────────────────┐
+│               microVM (Guest)               │
+│                                              │
+│  ┌─────────────────────────────────────┐    │
+│  │           用户空间 (User Space)      │    │
+│  │  ┌────────┐ ┌────────┐ ┌────────┐   │    │
+│  │  │ App A  │ │ App B  │ │ Agent  │   │    │
+│  │  └────────┘ └────────┘ └────────┘   │    │
+│  └─────────────────┬───────────────────┘    │
+│                    │ 系统调用                │
+│  ┌─────────────────┴───────────────────┐    │
+│  │      Guest Linux Kernel             │    │
+│  │  (定制精简内核, ~5MB)               │    │
+│  └─────────────────┬───────────────────┘    │
+└────────────────────┼────────────────────────┘
+                     │ virtio
+┌────────────────────┼────────────────────────┐
+│               Firecracker VMM              │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐ │
+│  │virtio-net│  │virtio-   │  │  Serial  │ │
+│  │(网络)    │  │block(磁盘)│  │ Console  │ │
+│  └──────────┘  └──────────┘  └──────────┘ │
+│         ↓ Unix Socket API → 外部控制       │
+└────────────────────────────────────────────┘
+```
+
+### 3.3 API 交互流程
+
+```
+                    启动一个 microVM 的完整流程
+
+  ┌────────┐      ┌──────────────┐      ┌──────────────┐
+  │ Client │      │ Firecracker  │      │   KVM/       │
+  │(firectl│      │   VMM        │      │   Linux      │
+  │/SDK)   │      │              │      │              │
+  └───┬────┘      └──────┬───────┘      └──────┬───────┘
+      │                  │                     │
+      │  1. PUT /boot-source                   │
+      │  (设置 Guest 内核镜像)                  │
+      │─────────────────→│                     │
+      │                  │                     │
+      │  2. PUT /drives/{drive_id}             │
+      │  (设置根文件系统/磁盘)                   │
+      │─────────────────→│                     │
+      │                  │                     │
+      │  3. PUT /network-interfaces/{nic_id}   │
+      │  (设置网络接口)                         │
+      │─────────────────→│                     │
+      │                  │                     │
+      │  4. PUT /machine-config                │
+      │  (设置 vCPU 数量、内存大小)              │
+      │─────────────────→│                     │
+      │                  │                     │
+      │  5. PUT /actions (action: InstanceStart)│
+      │─────────────────→│  6. 创建 KVM VM    │
+      │                  │────────────────────→│
+      │  200 OK          │  7. 加载内核+rootfs │
+      │←─────────────────│←────────────────────│
+      │                  │                     │
+      │  microVM 运行中 🟢                     │
+```
+
+---
+
+## 4. 快速上手
+
+### 4.1 环境要求
+
+| 要求 | 说明 |
+|---|---|
+| **CPU** | 支持 KVM 的 x86_64 或 ARM64 处理器（需硬件虚拟化扩展） |
+| **内核** | Linux 4.14+（推荐 5.10+） |
+| **KVM** | `/dev/kvm` 可访问 |
+| **用户权限** | 需要加入 `kvm` 组或 root 权限 |
+| **磁盘空间** | ≥ 1GB（含内核和 rootfs 镜像） |
+
+### 4.2 安装 Firecracker
+
+```bash
+# 方法一：下载官方发布二进制
+FC_RELEASE="v1.9.0"  # 请替换为最新版本
+ARCH=$(uname -m)
+curl -fLO "https://github.com/firecracker-microvm/firecracker/releases/download/${FC_RELEASE}/firecracker-${FC_RELEASE}-${ARCH}.tgz"
+tar xzf "firecracker-${FC_RELEASE}-${ARCH}.tgz"
+sudo mv "release-${FC_RELEASE}-${ARCH}/firecracker-${FC_RELEASE}-${ARCH}" /usr/local/bin/firecracker
+sudo mv "release-${FC_RELEASE}-${ARCH}/jailer-${FC_RELEASE}-${ARCH}" /usr/local/bin/jailer
+chmod +x /usr/local/bin/firecracker /usr/local/bin/jailer
+
+# 方法二：从源码编译（需要 Rust 工具链）
+git clone https://github.com/firecracker-microvm/firecracker.git
+cd firecracker
+./tools/devtool shell
+# 在开发容器内
+cargo build --release
+```
+
+### 4.3 准备 Guest 内核和 RootFS
+
+```bash
+# 下载官方推荐的 Guest 内核
+curl -fLO https://s3.amazonaws.com/spec.ccfc.min/firecracker-ci/vmlinux-5.10.186
+
+# 创建一个最小 rootfs（基于 Alpine Linux）
+docker run --rm -v $(pwd):/output alpine:latest \
+  sh -c 'apk add --no-cache util-linux && \
+         mkdir -p /tmp/rootfs/{bin,sbin,etc,proc,sys,dev,tmp} && \
+         cp -a /bin/* /tmp/rootfs/bin/ && \
+         cp -a /sbin/* /tmp/rootfs/sbin/ && \
+         cp /etc/passwd /tmp/rootfs/etc/ && \
+         cp /etc/group /tmp/rootfs/etc/ && \
+         dd if=/dev/zero of=/output/rootfs.ext4 bs=1M count=50 && \
+         mkfs.ext4 /output/rootfs.ext4 && \
+         mount -o loop /output/rootfs.ext4 /mnt && \
+         cp -a /tmp/rootfs/* /mnt/ && \
+         umount /mnt'
+```
+
+### 4.4 启动第一个 microVM
+
+```bash
+# 启动 Firecracker（守护模式，监听 Unix Socket）
+rm -f /tmp/firecracker.socket
+./firecracker --api-sock /tmp/firecracker.socket &
+
+# 配置 Guest 内核
+curl --unix-socket /tmp/firecracker.socket \
+  -X PUT 'http://localhost/boot-source' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "kernel_image_path": "./vmlinux-5.10.186",
+    "boot_args": "console=ttyS0 reboot=k panic=1 pci=off"
+  }'
+
+# 配置 RootFS 磁盘
+curl --unix-socket /tmp/firecracker.socket \
+  -X PUT 'http://localhost/drives/rootfs' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "drive_id": "rootfs",
+    "path_on_host": "./rootfs.ext4",
+    "is_root_device": true,
+    "is_read_only": false
+  }'
+
+# 配置虚拟机规格（2 vCPU, 256MB RAM）
+curl --unix-socket /tmp/firecracker.socket \
+  -X PUT 'http://localhost/machine-config' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "vcpu_count": 2,
+    "mem_size_mib": 256
+  }'
+
+# 启动虚拟机！
+curl --unix-socket /tmp/firecracker.socket \
+  -X PUT 'http://localhost/actions' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "action_type": "InstanceStart"
+  }'
+```
+
+> [!success] 预期结果
+> 终端将显示 Guest 内核的启动日志，随后进入 Alpine Linux 的 shell。整个过程不到 **125ms**。
+
+---
+
+## 5. Jailer 安全沙箱
+
+`jailer` 是 Firecracker 自带的安全工具，为 VMM 进程创建最小权限的隔离环境。
+
+### 5.1 Jailer 工作流程
+
+```
+┌─────────────────────────────────────────────────────┐
+│                    Jailer 执行流程                    │
+│                                                      │
+│  1. 检查参数和环境                                    │
+│         ↓                                            │
+│  2. 创建 chroot 目录结构                              │
+│     /srv/jailer/firecracker/{id}/root/               │
+│         ↓                                            │
+│  3. 绑定挂载所需资源                                  │
+│     ├── /dev/kvm (只读)                              │
+│     ├── rootfs.ext4                                  │
+│     ├── vmlinux (内核)                               │
+│     └── firecracker 二进制                           │
+│         ↓                                            │
+│  4. 创建 cgroup 隔离 (CPU / 内存 / 网络)             │
+│         ↓                                            │
+│  5. 降权到非 root 用户 (uid/gid)                     │
+│         ↓                                            │
+│  6. 应用 seccomp 过滤器                              │
+│         ↓                                            │
+│  7. chroot + execve → 启动 Firecracker VMM          │
+└─────────────────────────────────────────────────────┘
+```
+
+### 5.2 使用 Jailer 启动
+
+```bash
+# 使用 jailer 安全启动
+sudo jailer \
+  --id my-vm-001 \
+  --exec-file /usr/local/bin/firecracker \
+  --uid 1234 \
+  --gid 1234 \
+  --chroot-base-dir /srv/jailer \
+  --node 0 \
+  -- /srv/jailer/firecracker/my-vm-001/root/api.socket
+```
+
+> [!warning] 安全最佳实践
+> - 生产环境**必须**使用 jailer
+> - 使用非 root 的 uid/gid
+> - 配置 cgroup 资源限制
+> - 启用 seccomp 过滤
+> - rootfs 设为只读
+
+---
+
+## 6. 快照与恢复
+
+Firecracker 的快照功能允许你保存运行中 microVM 的完整状态（内存 + 设备），并在之后几乎瞬时恢复。
+
+### 6.1 快照流程
+
+```
+                     快照与恢复流程
+
+    源 microVM                          目标 Host
+    ┌─────────┐                        ┌─────────┐
+    │ Guest   │                        │         │
+    │ Running │                        │  空的   │
+    └────┬────┘                        └────┬────┘
+         │                                  │
+    1. PUT /snapshot                        │
+    (创建快照)                               │
+    ┌────┴────┐                             │
+    │ 生成:   │                             │
+    │ ├ memory│  ──── 复制文件 ────→        │
+    │ ├ vmstate│ ──── 复制文件 ────→        │
+    │ └ disk   │ ──── 复制文件 ────→        │
+    └─────────┘                             │
+         │                             ┌────┴────┐
+         │                             │ 加载:   │
+         │                             │ ├ memory│
+         │                             │ ├ vmstate│
+         │                             │ └ disk  │
+         │                             └────┬────┘
+         │                                  │
+         │                             2. PUT /snapshot (restore)
+         │                                  │
+         │                             ┌────┴────┐
+         │                             │ Guest   │
+         │                             │ Running │ ← 恢复 < 1ms
+         │                             └─────────┘
+```
+
+### 6.2 快照操作
+
+```bash
+# 创建快照
+curl --unix-socket /tmp/firecracker.socket \
+  -X PUT 'http://localhost/snapshot/create' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "snapshot_type": "Full",
+    "snapshot_path": "./snapshots/vm-state",
+    "mem_file_path": "./snapshots/vm-memory",
+    "version": "1.9.0"
+  }'
+
+# 从快照恢复
+curl --unix-socket /tmp/firecracker.socket \
+  -X PUT 'http://localhost/snapshot/load' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "snapshot_path": "./snapshots/vm-state",
+    "mem_file_path": "./snapshots/vm-memory",
+    "enable_diff_snapshots": false
+  }'
+```
+
+> [!important] 快照使用场景
+> - **Serverless 冷启动优化**：预先快照运行时环境，请求到达时瞬间恢复
+> - **VM 模板克隆**：从基础快照批量创建相同环境
+> - **调试与回滚**：保存关键状态用于问题排查
+
+---
+
+## 7. 网络配置
+
+### 7.1 TAP 网络接口
+
+```
+┌──────────────────────────────────────────────┐
+│               宿主机网络栈                     │
+│                                               │
+│  ┌──────────┐      ┌──────────┐              │
+│  │   eth0   │      │   eth0   │              │
+│  └────┬─────┘      └────┬─────┘              │
+│       │                  │                    │
+│  ┌────┴─────┐      ┌────┴─────┐              │
+│  │  tap0    │      │  tap1    │  ← TAP 设备  │
+│  └────┬─────┘      └────┬─────┘              │
+└───────┼──────────────────┼────────────────────┘
+        │ virtio-net       │ virtio-net
+┌───────┴───────┐  ┌──────┴────────┐
+│   microVM #1  │  │   microVM #2  │
+│  172.16.0.2   │  │  172.16.0.3   │
+└───────────────┘  └───────────────┘
+```
+
+### 7.2 创建 TAP 接口
+
+```bash
+# 创建 TAP 接口
+sudo ip tuntap add dev tap0 mode tap
+sudo ip addr add 172.16.0.1/24 dev tap0
+sudo ip link set tap0 up
+
+# 配置 NAT（允许 microVM 访问外网）
+sudo iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
+sudo iptables -A FORWARD -i tap0 -o eth0 -j ACCEPT
+sudo iptables -A FORWARD -i eth0 -o tap0 -m state --state RELATED,ESTABLISHED -j ACCEPT
+
+# 在 Firecracker 中添加网络接口
+curl --unix-socket /tmp/firecracker.socket \
+  -X PUT 'http://localhost/network-interfaces/eth0' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "iface_id": "eth0",
+    "host_dev_name": "tap0",
+    "guest_mac": "AA:FC:00:00:00:01"
+  }'
+```
+
+---
+
+## 8. 速率限制
+
+Firecracker 内置精细的 I/O 速率控制，无需外部工具：
+
+```bash
+# 网络带宽限制 (1 Gbps 入站, 500 Mbps 出站)
+curl --unix-socket /tmp/firecracker.socket \
+  -X PUT 'http://localhost/network-interfaces/eth0' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "iface_id": "eth0",
+    "host_dev_name": "tap0",
+    "rx_rate_limiter": {
+      "bandwidth": { "size": 125000000, "refill_time": 1000 }
+    },
+    "tx_rate_limiter": {
+      "bandwidth": { "size": 62500000, "refill_time": 1000 }
+    }
+  }'
+
+# 磁盘 IOPS 限制 (最大 10000 IOPS)
+curl --unix-socket /tmp/firecracker.socket \
+  -X PUT 'http://localhost/drives/rootfs' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "drive_id": "rootfs",
+    "path_on_host": "./rootfs.ext4",
+    "is_root_device": true,
+    "rate_limiter": {
+      "ops": { "size": 10000, "refill_time": 1000 }
+    }
+  }'
+```
+
+---
+
+## 9. 监控与指标
+
+```bash
+# 获取 microVM 运行指标（JSON 格式）
+curl --unix-socket /tmp/firecracker.socket \
+  'http://localhost/metrics' | jq .
+
+# 指标示例
+{
+  "vmm": {
+    "uptime_ns": 60000000000        // 运行时间（纳秒）
+  },
+  "cpu": {
+    "cputime_ns": 125000000         // CPU 使用时间
+  },
+  "net": {
+    "eth0": {
+      "rx_bytes_count": 1048576,    // 接收字节数
+      "tx_bytes_count": 524288,     // 发送字节数
+      "rx_packets_count": 1024,     // 接收包数
+      "tx_packets_count": 512       // 发送包数
+    }
+  },
+  "block": {
+    "rootfs": {
+      "read_bytes": 2097152,        // 磁盘读取字节数
+      "write_bytes": 1048576        // 磁盘写入字节数
+    }
+  }
+}
+```
+
+---
+
+## 10. 性能参考
+
+### 10.1 关键性能指标
+
+```
+┌──────────────────────────────────────────────────────┐
+│               Firecracker 性能基准                    │
+├──────────────────────┬───────────────────────────────┤
+│ 指标                 │ 数值                           │
+├──────────────────────┼───────────────────────────────┤
+│ 启动时间             │ < 125 ms                      │
+│ 快照恢复时间         │ < 1 ms                        │
+│ 额外内存开销         │ ~ 5 MB / VM                   │
+│ 最大 vCPU            │ 32 / VM                       │
+│ 最大内存             │ 8192 MB / VM                  │
+│ 密度（单宿主机）     │ 数千个 microVM                │
+│ VMM 二进制大小       │ ~ 2 MB（静态链接）            │
+│ 最小 Guest 内核      │ ~ 5 MB（精简配置）            │
+│ 最小 RootFS          │ ~ 1 MB（Alpine 最小安装）     │
+│ API 响应延迟         │ < 1 ms（本地 Unix Socket）    │
+└──────────────────────┴───────────────────────────────┘
+```
+
+### 10.2 性能优化建议
+
+| 优化项 | 建议 |
+|---|---|
+| **Guest 内核** | 使用精简配置，关闭不需要的驱动和功能 |
+| **RootFS** | 使用 ext4 + 去除不必要文件 |
+| **vCPU 绑定** | 通过 cgroup 将 vCPU 绑定到物理 CPU |
+| **网络** | 使用多队列 virtio-net，启用 vhost |
+| **磁盘** | 使用 raw 格式而非 qcow2 |
+| **快照** | 使用 Diff Snapshot 减少内存文件大小 |
+
+---
+
+## 11. 安全最佳实践
+
+```
+┌────────────────────────────────────────────┐
+│           Firecracker 安全纵深防御          │
+│                                             │
+│  ┌──────────────────────────────────────┐  │
+│  │  Layer 1: KVM 硬件虚拟化             │  │
+│  │  → 硬件级别的地址空间隔离            │  │
+│  └──────────────────────────────────────┘  │
+│  ┌──────────────────────────────────────┐  │
+│  │  Layer 2: 极简设备模型               │  │
+│  │  → 无传统设备模拟 → 攻击面最小       │  │
+│  └──────────────────────────────────────┘  │
+│  ┌──────────────────────────────────────┐  │
+│  │  Layer 3: seccomp 过滤器             │  │
+│  │  → VMM 进程只能执行必要的系统调用    │  │
+│  └──────────────────────────────────────┘  │
+│  ┌──────────────────────────────────────┐  │
+│  │  Layer 4: Jailer 沙箱                │  │
+│  │  → chroot + 降权 + cgroup 隔离       │  │
+│  └──────────────────────────────────────┘  │
+│  ┌──────────────────────────────────────┐  │
+│  │  Layer 5: 速率限制                   │  │
+│  │  → 防止资源滥用（DoS 防护）          │  │
+│  └──────────────────────────────────────┘  │
+└────────────────────────────────────────────┘
+```
+
+---
+
+## 12. 常见问题排查
+
+| 问题 | 原因 | 解决方案 |
+|---|---|---|
+| `Cannot open /dev/kvm` | 无 KVM 访问权限 | `sudo usermod -aG kvm $USER` |
+| Boot hangs at "Unmounting..." | Guest 内核版本不兼容 | 使用推荐的内核版本（5.10+） |
+| `Operation not permitted` | seccomp 阻止系统调用 | 检查 jailer 配置，或使用 `--seccomp-level` |
+| 网络不通 | TAP 接口未正确配置 | 检查 `ip link` 和 iptables 规则 |
+| 快照恢复失败 | 版本不匹配 | 确保快照与 Firecracker 版本一致 |
+| 内存不足 | 宿主机内存耗尽 | 减少 microVM 数量或单个 VM 内存 |
+
+---
+
+## 13. 生产环境检查清单
+
+> [!check] 部署前必检项
+> - [ ] KVM 模块已加载（`lsmod | grep kvm`）
+> - [ ] `/dev/kvm` 权限正确
+> - [ ] Guest 内核已精简配置
+> - [ ] RootFS 使用只读模式（必要时使用 overlay）
+> - [ ] 使用 jailer 启动（非裸启动）
+> - [ ] seccomp 过滤器已启用
+> - [ ] cgroup 资源限制已设置
+> - [ ] 网络速率限制已配置
+> - [ ] 磁盘 IOPS/带宽限制已配置
+> - [ ] 日志和指标收集已接入
+> - [ ] 快照备份策略已制定
