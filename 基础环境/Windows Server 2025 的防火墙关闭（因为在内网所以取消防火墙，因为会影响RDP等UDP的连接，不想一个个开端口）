@@ -1,0 +1,54 @@
+### **确保 Windows Server 2025 防火墙在重启后依然保持关闭状态**
+
+在 Windows Server 系统中，防火墙通常作为一种核心服务运行。如果仅通过简单的控制面板操作，有时会因为系统策略刷新或服务自愈机制在重启后重新启动。为了确保防火墙在重启后依然处于关闭状态，作为工程师，建议您采取以下更深层次的系统配置：
+
+### **第一步：禁用防火墙核心服务 (Service Level)**
+
+通过禁用底层服务，可以从根本上防止防火墙在系统引导时启动。
+
+1.  按 `Win + R` 键，输入 `services.msc` 并回车。
+2.  在服务列表中找到 **Windows Defender Firewall**。
+3.  右键点击该服务，选择 **属性**。
+4.  将 **启动类型** 从“自动”更改为 **禁用**。
+5.  点击 **停止** 服务，然后点击 **确定**。
+    *   **注意：** 在某些受保护的 Windows Server 版本中，GUI 界面可能会灰色显示无法修改。此时请参考下方的注册表方法。
+
+### **第二步：通过注册表强制锁定关闭状态 (Registry Level)**
+
+注册表修改具有最高优先级，能够覆盖系统 UI 的默认设置，确保重启后配置不被还原。
+
+1.  以管理员身份运行 **PowerShell**。
+2.  执行以下命令，直接修改注册表键值：
+    ```powershell
+    # 禁用所有网络配置文件的防火墙
+    Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\SharedAccess\Parameters\FirewallPolicy\DomainProfile' -Name 'EnableFirewall' -Value 0
+    Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\SharedAccess\Parameters\FirewallPolicy\StandardProfile' -Name 'EnableFirewall' -Value 0
+    Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\SharedAccess\Parameters\FirewallPolicy\PublicProfile' -Name 'EnableFirewall' -Value 0
+    ```
+3.  这些设置在系统读取启动配置时生效，即便服务尝试启动，防火墙逻辑也会保持关闭。 [Microsoft Q&A](https://learn.microsoft.com/en-us/answers/questions/2152443/how-to-disable-the-windows-defender-firewall-on-wi)
+
+### **第三步：通过本地组策略 (GPO) 固化设置**
+
+如果您担心 Windows Update 或系统维护任务会自动重置设置，使用组策略是“一劳永逸”的方案。
+
+1.  运行 `gpedit.msc` 打开本地组策略编辑器。
+2.  依次展开：`计算机配置` > `管理模板` > `网络` > `网络连接` > `Windows Defender 防火墙`。
+3.  进入 **域配置文件** (Domain Profile) 和 **标准配置文件** (Standard Profile)。
+4.  将 **Windows Defender 防火墙: 保护所有网络连接** 设置为 **已禁用**。
+5.  **关键步骤：** 确保同时禁用了“允许异常”等相关干扰项。这样即使系统重启，组策略引擎也会在登录时强制应用关闭指令。 [PeteNetLive](https://www.petenetlive.com/KB/Article/0001090)
+
+### **验证与参考资源**
+
+#### **验证状态**
+重启服务器后，请再次运行以下 PowerShell 命令确认状态：
+```powershell
+netsh advfirewall show allprofiles
+```
+如果所有 Profile 的 `State` 均显示为 `OFF`，则表示配置已成功固化。
+
+#### **可视化参考**
+*   **操作视频：** 您可以参考此视频中关于 Windows Server 2025 安全设置的第 12 分钟起的内容，了解如何通过 GPO 固化系统配置：[Windows Server 2025: 15 Settings Every Admin Should Check](https://www.youtube.com/watch?v=N47CfL2a-Sg)。
+*   **官方文档：** 更多关于防火墙自动化脚本的编写，可参考 [Windows Server Firewall Automation Best Practices](https://wafaicloud.com/blog/windows-server-firewall-automation-best-practices)。
+
+### **工程师特别提醒**
+在大规模生产环境中，如果该服务器加入了域（Active Directory），域控制器的 **域组策略** 可能会覆盖您的本地设置。如果发现重启后防火墙依然开启，请联系域管理员检查是否有上级 GPO 强制开启了防火墙。
