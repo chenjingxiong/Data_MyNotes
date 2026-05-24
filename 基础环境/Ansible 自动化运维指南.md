@@ -7,7 +7,16 @@ tags:
   - devops
   - infrastructure
   - configuration-management
-source: https://github.comansible/ansible
+  - windows
+  - hyper-v
+  - firecracker
+  - microvm
+  - serverless
+related:
+  - "[[基础环境/WinRM 与 Ansible Windows 自动化运维指南]]"
+  - "[[Firecracker microVM 介绍与使用指南]]"
+  - "[[Firecracker 生态与配合项目指南]]"
+source: https://github.com/ansible/ansible
 ---
 
 # Ansible 自动化运维指南
@@ -22,18 +31,18 @@ source: https://github.comansible/ansible
 
 Ansible 是一个**极简的 IT 自动化系统**，由 Red Hat 维护，用于：
 
-| 能力 | 说明 |
-|------|------|
-| **配置管理** | 统一管理服务器配置状态 |
-| **应用部署** | 自动化应用的构建、发布、更新 |
+| 能力        | 说明                                 |
+| --------- | ---------------------------------- |
+| **配置管理**  | 统一管理服务器配置状态                        |
+| **应用部署**  | 自动化应用的构建、发布、更新                     |
 | **云资源编排** | AWS / Azure / GCP / OpenStack 资源管理 |
-| **任务自动化** | 日常运维任务的批量执行 |
-| **网络自动化** | 网络设备的配置和管理 |
-| **零停机更新** | 滚动更新 + 负载均衡协调 |
+| **任务自动化** | 日常运维任务的批量执行                        |
+| **网络自动化** | 网络设备的配置和管理                         |
+| **零停机更新** | 滚动更新 + 负载均衡协调                      |
 
 ### 核心设计原则
 
-1. **无代理 (Agentless)** — 不需要在目标机器上安装任何客户端，直接利用 SSH (Linux) / WinRM (Windows)
+1. **无代理 (Agentless)** — 不需要在目标机器上安装任何客户端，直接利用 SSH (Linux) / WinRM (Windows) → 详见 [[基础环境/WinRM 与 Ansible Windows 自动化运维指南|WinRM 指南]]
 2. **幂等性 (Idempotent)** — 同一个 Playbook 执行多次结果一致，不会重复操作
 3. **人类可读** — 使用 YAML 描述自动化逻辑，易读易写
 4. **最小依赖** — 控制节点仅需 Python，无需数据库或守护进程
@@ -1337,18 +1346,18 @@ docker compose -f semaphore-docker-compose.yml up -d
 
 #### Semaphore 核心功能
 
-| 功能 | 说明 |
-|------|------|
-| **项目管理** | 多项目隔离，每项目独立的 Inventory / Keys |
-| **任务模板** | 绑定 Playbook + Inventory + 凭据，一键执行 |
-| **密钥管理** | SSH 密钥、登录密码的安全存储 |
-| **环境管理** | 多环境支持（开发/测试/生产） |
-| **Inventory** | 静态文件 / 动态脚本 / 手动添加 |
-| **任务日志** | 实时查看 Playbook 执行输出 |
-| **定时任务** | Cron 风格的调度执行 |
-| **API** | RESTful API，可集成到 CI/CD |
-| **通知** | 邮件 / Slack / Webhook 通知 |
-| **多用户** | 基础的 RBAC 权限管理 |
+| 功能            | 说明                                |
+| ------------- | --------------------------------- |
+| **项目管理**      | 多项目隔离，每项目独立的 Inventory / Keys     |
+| **任务模板**      | 绑定 Playbook + Inventory + 凭据，一键执行 |
+| **密钥管理**      | SSH 密钥、登录密码的安全存储                  |
+| **环境管理**      | 多环境支持（开发/测试/生产）                   |
+| **Inventory** | 静态文件 / 动态脚本 / 手动添加                |
+| **任务日志**      | 实时查看 Playbook 执行输出                |
+| **定时任务**      | Cron 风格的调度执行                      |
+| **API**       | RESTful API，可集成到 CI/CD            |
+| **通知**        | 邮件 / Slack / Webhook 通知           |
+| **多用户**       | 基础的 RBAC 权限管理                     |
 
 #### Semaphore API 调用
 
@@ -1500,3 +1509,1098 @@ ansible -m debug -a "var=hostvars[inventory_hostname]" all
 - 🖥️ [Ansible Semaphore](https://github.com/ansible-semaphore/semaphore) — 轻量级 Web UI
 - 🔧 [ansible-builder](https://github.com/ansible/ansible-builder) — 执行环境构建工具
 - 🔧 [Molecule](https://github.com/ansible/molecule) — 角色测试框架
+- 📰 [[基础环境/WinRM 与 Ansible Windows 自动化运维指南|WinRM 与 Ansible Windows 自动化运维指南]] — WinRM 配置 + Windows 管理 + Hyper-V 虚拟化
+- 🔥 [[Firecracker microVM 介绍与使用指南]] — Firecracker 轻量级 microVM 虚拟化
+- 🔥 [[Firecracker 生态与配合项目指南]] — Firecracker 生态项目与集成方案
+
+---
+
+## 十七、Firecracker microVM 自动化部署与管理
+
+> [!info] 前置阅读
+> - [[Firecracker microVM 介绍与使用指南]] — Firecracker 基础概念、架构、API 与操作
+> - [[Firecracker 生态与配合项目指南]] — 生态项目全景与选型指南
+
+**Firecracker** 是 AWS 开源的轻量级虚拟机监视器（VMM），能在 <125ms 启动一个 microVM，提供 VM 级安全隔离和容器级速度。结合 Ansible 可以实现：
+
+| 场景 | 说明 |
+|------|------|
+| **批量部署** | 在多台宿主机上一键安装 Firecracker + Jailer |
+| **生命周期管理** | 通过 Ansible 调用 Firecracker API 创建/销毁/快照 microVM |
+| **基础设施即代码** | 将 microVM 定义（内核、rootfs、网络、规格）全部 YAML 化 |
+| **CI/CD 集成** | 与 AWX/Semaphore 集成，实现 Web 化的 microVM 管理平台 |
+
+### 17.1 宿主机环境准备 Playbook
+
+在一台或多台 Linux 宿主机上安装 Firecracker 运行环境：
+
+```yaml
+# playbooks/firecracker-setup.yml
+- name: 部署 Firecracker 宿主机环境
+  hosts: fc_hosts
+  become: yes
+  vars:
+    firecracker_version: "v1.9.0"
+    firecracker_install_dir: /usr/local/bin
+    jailer_user: "fc-jailer"
+    jailer_uid: 1234
+    jailer_gid: 1234
+    jailer_chroot_base: /srv/jailer
+
+  tasks:
+    # 检查 KVM 支持
+    - name: 检查 KVM 支持
+      ansible.builtin.stat:
+        path: /dev/kvm
+      register: kvm_check
+
+    - name: 断言 KVM 可用
+      ansible.builtin.assert:
+        that: kvm_check.stat.exists
+        fail_msg: "KVM 不可用！请确保 CPU 支持虚拟化并已加载 kvm 模块"
+
+    # 安装系统依赖
+    - name: 安装系统依赖
+      ansible.builtin.apt:
+        name:
+          - curl
+          - iproute2
+          - iptables
+          - bridge-utils
+          - util-linux
+        state: present
+        update_cache: yes
+      when: ansible_os_family == "Debian"
+
+    # 下载 Firecracker 二进制
+    - name: 下载 Firecracker
+      ansible.builtin.get_url:
+        url: "https://github.com/firecracker-microvm/firecracker/releases/download/{{ firecracker_version }}/firecracker-{{ firecracker_version }}-{{ ansible_architecture }}.tgz"
+        dest: "/tmp/firecracker-{{ firecracker_version }}.tgz"
+        mode: '0644'
+      register: fc_download
+
+    - name: 解压并安装 Firecracker
+      ansible.builtin.unarchive:
+        src: "/tmp/firecracker-{{ firecracker_version }}.tgz"
+        dest: "/tmp/"
+        remote_src: yes
+      when: fc_download.changed
+
+    - name: 安装 Firecracker 二进制
+      ansible.builtin.copy:
+        src: "/tmp/release-{{ firecracker_version }}-{{ ansible_architecture }}/firecracker-{{ firecracker_version }}-{{ ansible_architecture }}"
+        dest: "{{ firecracker_install_dir }}/firecracker"
+        mode: '0755'
+        remote_src: yes
+
+    - name: 安装 Jailer 二进制
+      ansible.builtin.copy:
+        src: "/tmp/release-{{ firecracker_version }}-{{ ansible_architecture }}/jailer-{{ firecracker_version }}-{{ ansible_architecture }}"
+        dest: "{{ firecracker_install_dir }}/jailer"
+        mode: '0755'
+        remote_src: yes
+
+    # 创建 Jailer 用户
+    - name: 创建 Jailer 专用用户
+      ansible.builtin.user:
+        name: "{{ jailer_user }}"
+        uid: "{{ jailer_uid }}"
+        group: "kvm"
+        shell: /usr/sbin/nologin
+        system: yes
+        create_home: no
+
+    # 创建目录结构
+    - name: 创建 Jailer chroot 基础目录
+      ansible.builtin.file:
+        path: "{{ jailer_chroot_base }}/firecracker"
+        state: directory
+        mode: '0755'
+
+    # 验证安装
+    - name: 验证 Firecracker 安装
+      ansible.builtin.command: "{{ firecracker_install_dir }}/firecracker --version"
+      register: fc_version
+      changed_when: false
+
+    - name: 显示安装结果
+      ansible.builtin.debug:
+        msg: "Firecracker 安装成功: {{ fc_version.stdout }}"
+```
+
+### 17.2 microVM 镜像准备 Playbook
+
+批量准备 Guest 内核和 rootfs 镜像：
+
+```yaml
+# playbooks/firecracker-images.yml
+- name: 准备 Firecracker 镜像资源
+  hosts: fc_hosts
+  become: yes
+  vars:
+    fc_images_dir: /opt/firecracker/images
+    kernel_url: "https://s3.amazonaws.com/spec.ccfc.min/firecracker-ci/vmlinux-5.10.186"
+    rootfs_size_mb: 500
+
+  tasks:
+    - name: 创建镜像目录
+      ansible.builtin.file:
+        path: "{{ fc_images_dir }}"
+        state: directory
+        mode: '0755'
+
+    - name: 下载 Guest 内核
+      ansible.builtin.get_url:
+        url: "{{ kernel_url }}"
+        dest: "{{ fc_images_dir }}/vmlinux-5.10"
+        mode: '0644'
+
+    - name: 创建 Alpine rootfs（基于 Docker）
+      ansible.builtin.shell: |
+        docker run --rm -v {{ fc_images_dir }}:/output alpine:latest \
+          sh -c '
+            mkdir -p /tmp/rootfs/{bin,sbin,etc,proc,sys,dev,tmp,lib,lib64,var,run}
+            cp -a /bin/* /tmp/rootfs/bin/
+            cp -a /sbin/* /tmp/rootfs/sbin/
+            cp -a /lib/* /tmp/rootfs/lib/
+            cp -a /lib64/* /tmp/rootfs/lib64/ 2>/dev/null || true
+            cp /etc/passwd /tmp/rootfs/etc/
+            cp /etc/group /tmp/rootfs/etc/
+            echo "root:x:0:0:root:/root:/bin/sh" > /tmp/rootfs/etc/passwd
+            dd if=/dev/zero of=/output/rootfs.ext4 bs=1M count={{ rootfs_size_mb }}
+            mkfs.ext4 -F /output/rootfs.ext4
+            mount -o loop /output/rootfs.ext4 /mnt
+            cp -a /tmp/rootfs/* /mnt/
+            echo "#!/bin/sh" > /mnt/init
+            echo "mount -t proc proc /proc" >> /mnt/init
+            echo "mount -t sysfs sysfs /sys" >> /mnt/init
+            echo "mount -t devtmpfs devtmpfs /dev" >> /mnt/init
+            echo "ip link set lo up" >> /mnt/init
+            echo "ip link set eth0 up" >> /mnt/init
+            echo "exec /bin/sh" >> /mnt/init
+            chmod +x /mnt/init
+            umount /mnt
+          '
+      args:
+        creates: "{{ fc_images_dir }}/rootfs.ext4"
+
+    - name: 验证镜像文件
+      ansible.builtin.stat:
+        path: "{{ fc_images_dir }}/{{ item }}"
+      loop:
+        - vmlinux-5.10
+        - rootfs.ext4
+      register: image_check
+
+    - name: 显示镜像信息
+      ansible.builtin.debug:
+        msg: "{{ item.item }}: {{ (item.stat.size / 1024 / 1024) | round(1) }}MB"
+      loop: "{{ image_check.results }}"
+```
+
+### 17.3 microVM 生命周期管理 Playbook
+
+通过 Ansible 的 `uri` 模块调用 Firecracker REST API 管理 microVM：
+
+```yaml
+# playbooks/firecracker-vm-manage.yml
+- name: 管理 Firecracker microVM
+  hosts: fc_hosts
+  become: yes
+  vars:
+    vm_id: "my-vm-001"
+    socket_path: "/tmp/firecracker-{{ vm_id }}.socket"
+    fc_images_dir: /opt/firecracker/images
+    vm_vcpu: 2
+    vm_mem_mib: 256
+    tap_device: "tap-{{ vm_id }}"
+    vm_guest_mac: "AA:FC:00:00:00:01"
+    vm_ip: "172.16.0.2"
+    tap_ip: "172.16.0.1"
+
+  tasks:
+    # ===== 创建 TAP 网络接口 =====
+    - name: 创建 TAP 网络接口
+      ansible.builtin.command:
+        cmd: ip tuntap add dev {{ tap_device }} mode tap
+      ignore_errors: yes
+      changed_when: false
+
+    - name: 配置 TAP 接口 IP
+      ansible.builtin.command:
+        cmd: ip addr add {{ tap_ip }}/24 dev {{ tap_device }}
+      ignore_errors: yes
+      changed_when: false
+
+    - name: 启用 TAP 接口
+      ansible.builtin.command:
+        cmd: ip link set {{ tap_device }} up
+      changed_when: false
+
+    - name: 配置 NAT 转发
+      ansible.builtin.iptables:
+        table: nat
+        chain: POSTROUTING
+        out_interface: "{{ ansible_default_ipv4.interface }}"
+        jump: MASQUERADE
+      become: yes
+
+    - name: 允许 TAP 转发
+      ansible.builtin.iptables:
+        chain: FORWARD
+        in_interface: "{{ tap_device }}"
+        out_interface: "{{ ansible_default_ipv4.interface }}"
+        policy: ACCEPT
+
+    # ===== 启动 Firecracker 进程 =====
+    - name: 清理旧 Socket
+      ansible.builtin.file:
+        path: "{{ socket_path }}"
+        state: absent
+
+    - name: 启动 Firecracker VMM 进程
+      ansible.builtin.shell: |
+        nohup /usr/local/bin/firecracker \
+          --api-sock {{ socket_path }} > /var/log/firecracker-{{ vm_id }}.log 2>&1 &
+        echo $!
+      register: fc_pid
+      changed_when: true
+
+    - name: 等待 API 就绪
+      ansible.builtin.wait_for:
+        path: "{{ socket_path }}"
+        timeout: 5
+
+    # ===== 配置 microVM =====
+    - name: 设置 Guest 内核
+      ansible.builtin.uri:
+        url: "http://localhost/boot-source"
+        unix_socket: "{{ socket_path }}"
+        method: PUT
+        body_format: json
+        body:
+          kernel_image_path: "{{ fc_images_dir }}/vmlinux-5.10"
+          boot_args: "console=ttyS0 reboot=k panic=1 pci=off"
+        status_code: 204
+
+    - name: 设置 RootFS 磁盘
+      ansible.builtin.uri:
+        url: "http://localhost/drives/rootfs"
+        unix_socket: "{{ socket_path }}"
+        method: PUT
+        body_format: json
+        body:
+          drive_id: rootfs
+          path_on_host: "{{ fc_images_dir }}/rootfs.ext4"
+          is_root_device: true
+          is_read_only: false
+        status_code: 204
+
+    - name: 配置网络接口
+      ansible.builtin.uri:
+        url: "http://localhost/network-interfaces/eth0"
+        unix_socket: "{{ socket_path }}"
+        method: PUT
+        body_format: json
+        body:
+          iface_id: eth0
+          host_dev_name: "{{ tap_device }}"
+          guest_mac: "{{ vm_guest_mac }}"
+        status_code: 204
+
+    - name: 设置虚拟机规格
+      ansible.builtin.uri:
+        url: "http://localhost/machine-config"
+        unix_socket: "{{ socket_path }}"
+        method: PUT
+        body_format: json
+        body:
+          vcpu_count: "{{ vm_vcpu }}"
+          mem_size_mib: "{{ vm_mem_mib }}"
+        status_code: 204
+
+    # ===== 启动虚拟机 =====
+    - name: 启动 microVM
+      ansible.builtin.uri:
+        url: "http://localhost/actions"
+        unix_socket: "{{ socket_path }}"
+        method: PUT
+        body_format: json
+        body:
+          action_type: InstanceStart
+        status_code: 204
+
+    - name: 显示 microVM 信息
+      ansible.builtin.debug:
+        msg: |
+          ✅ microVM '{{ vm_id }}' 已启动！
+          vCPU: {{ vm_vcpu }} | 内存: {{ vm_mem_mib }}MB
+          Guest IP: {{ vm_ip }} | PID: {{ fc_pid.stdout }}
+          日志: /var/log/firecracker-{{ vm_id }}.log
+```
+
+### 17.4 批量 microVM 编排
+
+使用变量驱动批量创建多台 microVM：
+
+```yaml
+# playbooks/firecracker-batch.yml
+- name: 批量创建 microVM 集群
+  hosts: fc_hosts
+  become: yes
+  vars:
+    fc_images_dir: /opt/firecracker/images
+    microvms:
+      - id: "web-001"
+        vcpu: 2
+        mem: 512
+        ip: "172.16.1.10"
+        mac: "AA:FC:01:00:00:01"
+        rootfs: "rootfs-web.ext4"
+      - id: "web-002"
+        vcpu: 2
+        mem: 512
+        ip: "172.16.1.11"
+        mac: "AA:FC:01:00:00:02"
+        rootfs: "rootfs-web.ext4"
+      - id: "db-001"
+        vcpu: 4
+        mem: 1024
+        ip: "172.16.1.20"
+        mac: "AA:FC:01:00:00:03"
+        rootfs: "rootfs-db.ext4"
+      - id: "cache-001"
+        vcpu: 1
+        mem: 256
+        ip: "172.16.1.30"
+        mac: "AA:FC:01:00:00:04"
+        rootfs: "rootfs-cache.ext4"
+
+  tasks:
+    - name: 为每台 VM 准备独立 rootfs
+      ansible.builtin.command:
+        cmd: >
+          cp {{ fc_images_dir }}/rootfs.ext4
+          {{ fc_images_dir }}/{{ item.rootfs }}
+      args:
+        creates: "{{ fc_images_dir }}/{{ item.rootfs }}"
+      loop: "{{ microvms }}"
+
+    - name: 批量创建 microVM
+      ansible.builtin.include_tasks: tasks/create-microvm.yml
+      loop: "{{ microvms }}"
+      loop_control:
+        loop_var: vm
+        label: "{{ vm.id }}"
+```
+
+`tasks/create-microvm.yml`（单台 VM 创建任务）：
+
+```yaml
+# tasks/create-microvm.yml
+- name: "准备 {{ vm.id }} — 创建 TAP 接口"
+  ansible.builtin.shell: |
+    ip tuntap add dev tap-{{ vm.id }} mode tap 2>/dev/null || true
+    ip addr add {{ vm.ip | regex_replace('\\.[0-9]+$', '.1') }}/24 dev tap-{{ vm.id }} 2>/dev/null || true
+    ip link set tap-{{ vm.id }} up
+  changed_when: false
+
+- name: "准备 {{ vm.id }} — 清理旧 Socket"
+  ansible.builtin.file:
+    path: "/tmp/fc-{{ vm.id }}.socket"
+    state: absent
+
+- name: "启动 {{ vm.id }} — 启动 VMM 进程"
+  ansible.builtin.shell: |
+    nohup /usr/local/bin/firecracker \
+      --api-sock /tmp/fc-{{ vm.id }}.socket \
+      > /var/log/fc-{{ vm.id }}.log 2>&1 &
+  changed_when: true
+
+- name: "启动 {{ vm.id }} — 等待 API 就绪"
+  ansible.builtin.wait_for:
+    path: "/tmp/fc-{{ vm.id }}.socket"
+    timeout: 5
+
+- name: "配置 {{ vm.id }} — 内核 + 磁盘 + 网络 + 规格"
+  ansible.builtin.uri:
+    url: "http://localhost{{ item.path }}"
+    unix_socket: "/tmp/fc-{{ vm.id }}.socket"
+    method: PUT
+    body_format: json
+    body: "{{ item.body }}"
+    status_code: 204
+  loop:
+    - path: "/boot-source"
+      body:
+        kernel_image_path: "{{ fc_images_dir }}/vmlinux-5.10"
+        boot_args: "console=ttyS0 reboot=k panic=1 pci=off"
+    - path: "/drives/rootfs"
+      body:
+        drive_id: rootfs
+        path_on_host: "{{ fc_images_dir }}/{{ vm.rootfs }}"
+        is_root_device: true
+        is_read_only: false
+    - path: "/network-interfaces/eth0"
+      body:
+        iface_id: eth0
+        host_dev_name: "tap-{{ vm.id }}"
+        guest_mac: "{{ vm.mac }}"
+    - path: "/machine-config"
+      body:
+        vcpu_count: "{{ vm.vcpu }}"
+        mem_size_mib: "{{ vm.mem }}"
+  loop_control:
+    label: "{{ item.path }}"
+
+- name: "启动 {{ vm.id }} — InstanceStart"
+  ansible.builtin.uri:
+    url: "http://localhost/actions"
+    unix_socket: "/tmp/fc-{{ vm.id }}.socket"
+    method: PUT
+    body_format: json
+    body:
+      action_type: InstanceStart
+    status_code: 204
+```
+
+### 17.5 快照管理 Playbook
+
+通过 Ansible 管理 Firecracker 快照（创建/恢复/批量克隆）：
+
+```yaml
+# playbooks/firecracker-snapshots.yml
+- name: Firecracker 快照管理
+  hosts: fc_hosts
+  become: yes
+  vars:
+    snapshot_dir: /opt/firecracker/snapshots
+    source_vm: "web-001"
+    source_socket: "/tmp/fc-{{ source_vm }}.socket"
+    clone_count: 3
+
+  tasks:
+    # ===== 创建快照 =====
+    - name: 创建快照目录
+      ansible.builtin.file:
+        path: "{{ snapshot_dir }}/{{ source_vm }}"
+        state: directory
+        mode: '0755'
+
+    - name: 对运行中的 microVM 创建快照
+      ansible.builtin.uri:
+        url: "http://localhost/snapshot/create"
+        unix_socket: "{{ source_socket }}"
+        method: PUT
+        body_format: json
+        body:
+          snapshot_type: "Full"
+          snapshot_path: "{{ snapshot_dir }}/{{ source_vm }}/vm-state"
+          mem_file_path: "{{ snapshot_dir }}/{{ source_vm }}/vm-memory"
+          version: "1.9.0"
+        status_code: 204
+
+    # ===== 批量从快照恢复（克隆） =====
+    - name: 批量克隆 microVM
+      ansible.builtin.include_tasks: tasks/restore-microvm.yml
+      loop: "{{ range(1, clone_count + 1) | list }}"
+      loop_control:
+        loop_var: clone_idx
+
+    - name: 显示克隆结果
+      ansible.builtin.debug:
+        msg: |
+          ✅ 快照创建完成: {{ source_vm }}
+          ✅ 已克隆 {{ clone_count }} 台 microVM
+          快照位置: {{ snapshot_dir }}/{{ source_vm }}/
+```
+
+`tasks/restore-microvm.yml`：
+
+```yaml
+# tasks/restore-microvm.yml
+- name: "克隆 #{{ clone_idx }} — 准备 rootfs 副本"
+  ansible.builtin.command:
+    cmd: >
+      cp {{ snapshot_dir }}/{{ source_vm }}/vm-state
+      {{ snapshot_dir }}/clone-{{ clone_idx }}-vm-state
+    creates: "{{ snapshot_dir }}/clone-{{ clone_idx }}-vm-state"
+
+- name: "克隆 #{{ clone_idx }} — 准备内存副本"
+  ansible.builtin.command:
+    cmd: >
+      cp {{ snapshot_dir }}/{{ source_vm }}/vm-memory
+      {{ snapshot_dir }}/clone-{{ clone_idx }}-vm-memory
+    creates: "{{ snapshot_dir }}/clone-{{ clone_idx }}-vm-memory"
+
+- name: "克隆 #{{ clone_idx }} — 启动新 VMM 进程"
+  ansible.builtin.shell: |
+    rm -f /tmp/fc-clone-{{ clone_idx }}.socket
+    nohup /usr/local/bin/firecracker \
+      --api-sock /tmp/fc-clone-{{ clone_idx }}.socket \
+      > /var/log/fc-clone-{{ clone_idx }}.log 2>&1 &
+  changed_when: true
+
+- name: "克隆 #{{ clone_idx }} — 等待 API"
+  ansible.builtin.wait_for:
+    path: "/tmp/fc-clone-{{ clone_idx }}.socket"
+    timeout: 5
+
+- name: "克隆 #{{ clone_idx }} — 加载快照"
+  ansible.builtin.uri:
+    url: "http://localhost/snapshot/load"
+    unix_socket: "/tmp/fc-clone-{{ clone_idx }}.socket"
+    method: PUT
+    body_format: json
+    body:
+      snapshot_path: "{{ snapshot_dir }}/clone-{{ clone_idx }}-vm-state"
+      mem_file_path: "{{ snapshot_dir }}/clone-{{ clone_idx }}-vm-memory"
+      enable_diff_snapshots: false
+    status_code: 204
+
+- name: "克隆 #{{ clone_idx }} — 恢复执行"
+  ansible.builtin.uri:
+    url: "http://localhost/actions"
+    unix_socket: "/tmp/fc-clone-{{ clone_idx }}.socket"
+    method: PUT
+    body_format: json
+    body:
+      action_type: InstanceStart
+    status_code: 204
+```
+
+### 17.6 推荐项目结构
+
+```
+ansible-firecracker/
+├── ansible.cfg
+├── inventory/
+│   ├── hosts.ini                        # FC 宿主机清单
+│   ├── group_vars/
+│   │   └── fc_hosts.yml                 # 全局变量（版本、路径、网络）
+│   └── host_vars/
+│       └── host1.yml                    # 单台宿主机变量
+├── playbooks/
+│   ├── firecracker-setup.yml            # 宿主机环境安装
+│   ├── firecracker-images.yml           # 镜像准备
+│   ├── firecracker-vm-manage.yml        # 单台 VM 管理
+│   ├── firecracker-batch.yml            # 批量 VM 编排
+│   └── firecracker-snapshots.yml        # 快照管理
+├── tasks/
+│   ├── create-microvm.yml               # 单台 VM 创建任务
+│   └── restore-microvm.yml              # 快照恢复任务
+├── templates/
+│   └── fc-service.json.j2               # microVM 配置模板
+├── roles/
+│   └── firecracker/                     # 可复用 Role
+│       ├── defaults/main.yml
+│       ├── tasks/
+│       │   ├── install.yml
+│       │   ├── configure-network.yml
+│       │   └── create-vm.yml
+│       ├── templates/
+│       └── handlers/
+└── group_vars/
+    └── fc_hosts.yml
+```
+
+`inventory/group_vars/fc_hosts.yml` — 全局配置变量：
+
+```yaml
+# Firecracker 全局配置
+firecracker_version: "v1.9.0"
+firecracker_install_dir: /usr/local/bin
+fc_images_dir: /opt/firecracker/images
+fc_snapshots_dir: /opt/firecracker/snapshots
+jailer_user: fc-jailer
+jailer_uid: 1234
+jailer_gid: 1234
+jailer_chroot_base: /srv/jailer
+
+# 网络配置
+fc_subnet: "172.16.0.0/16"
+fc_tap_base_ip: "172.16.0.1"
+
+# 默认 microVM 规格
+default_vcpu: 2
+default_mem_mib: 256
+```
+
+`inventory/hosts.ini`：
+
+```ini
+[fc_hosts]
+fc-host1 ansible_host=192.168.1.100
+fc-host2 ansible_host=192.168.1.101
+
+[fc_hosts:vars]
+ansible_user=ubuntu
+ansible_python_interpreter=/usr/bin/python3
+```
+
+### 17.7 Web UI 集成管理
+
+将 Firecracker 管理集成到 Web UI 平台（AWX / Semaphore），实现可视化运维。
+
+#### 方案一：AWX 集成
+
+```
+┌──────────────────────────────────────────────────────────┐
+│                   AWX Web UI                             │
+│  ┌─────────────────────────────────────────────────────┐│
+│  │  📋 Firecracker 仪表盘 (自定义 Dashboard)           ││
+│  │  ├── 运行中 microVM 数量                             ││
+│  │  ├── 各宿主机资源使用率                               ││
+│  │  └── 最近执行历史                                    ││
+│  └─────────────────────────────────────────────────────┘│
+│                                                          │
+│  ┌─────────────────────────────────────────────────────┐│
+│  │  🚀 作业模板 (Job Templates)                        ││
+│  │                                                     ││
+│  │  ┌──────────────────┐  ┌──────────────────────┐     ││
+│  │  │ FC-Setup         │  │ FC-Create-VM         │     ││
+│  │  │ 安装宿主机环境    │  │ 创建单台 microVM     │     ││
+│  │  │ Survey: 无       │  │ Survey: vm_id, vcpu  │     ││
+│  │  └──────────────────┘  │          mem, ip     │     ││
+│  │                        └──────────────────────┘     ││
+│  │  ┌──────────────────┐  ┌──────────────────────┐     ││
+│  │  │ FC-Batch-Create  │  │ FC-Snapshot           │     ││
+│  │  │ 批量创建 VM      │  │ 快照创建/恢复/克隆    │     ││
+│  │  │ Survey: 配置文件 │  │ Survey: vm_id, action │     ││
+│  │  └──────────────────┘  └──────────────────────┘     ││
+│  │  ┌──────────────────┐  ┌──────────────────────┐     ││
+│  │  │ FC-List-VMs      │  │ FC-Destroy-VM        │     ││
+│  │  │ 列出所有 VM      │  │ 销毁指定 microVM     │     ││
+│  │  │ Survey: host     │  │ Survey: vm_id        │     ││
+│  │  └──────────────────┘  └──────────────────────┘     ││
+│  └─────────────────────────────────────────────────────┘│
+│                                                          │
+│  ┌─────────────────────────────────────────────────────┐│
+│  │  ⏰ 定时调度 (Schedules)                             ││
+│  │  ├── 每日凌晨 2:00 — 清理过期 VM                    ││
+│  │  ├── 每小时 — 健康检查 + 自动重启失败 VM            ││
+│  │  └── 每周日 — 创建全量快照                           ││
+│  └─────────────────────────────────────────────────────┘│
+└──────────────────────────────────────────────────────────┘
+```
+
+在 AWX 中创建作业模板的配置：
+
+```yaml
+# AWX 作业模板配置示例（通过 API 或 Web UI 创建）
+templates:
+  - name: "FC-Create-VM"
+    description: "创建一台 Firecracker microVM"
+    playbook: playbooks/firecracker-vm-manage.yml
+    inventory: "FC-Production"
+    credential: "FC-SSH-Key"
+    survey_enabled: true
+    survey_spec:
+      - variable: vm_id
+        type: text
+        required: true
+        description: "microVM 标识符"
+      - variable: vm_vcpu
+        type: integer
+        required: true
+        default: 2
+        description: "vCPU 数量"
+      - variable: vm_mem_mib
+        type: integer
+        required: true
+        default: 256
+        description: "内存大小 (MB)"
+      - variable: vm_ip
+        type: text
+        required: true
+        description: "Guest IP 地址"
+
+  - name: "FC-Snapshot"
+    description: "快照管理（创建/恢复/克隆）"
+    playbook: playbooks/firecracker-snapshots.yml
+    survey_enabled: true
+    survey_spec:
+      - variable: source_vm
+        type: text
+        required: true
+        description: "源 microVM 标识"
+      - variable: clone_count
+        type: integer
+        default: 1
+        min: 1
+        max: 20
+        description: "克隆数量"
+
+  - name: "FC-Batch-Create"
+    description: "批量创建 microVM 集群"
+    playbook: playbooks/firecracker-batch.yml
+    extra_vars:
+      microvms: "{{ survey_microvms }}"
+```
+
+#### 方案二：Semaphore 集成
+
+Semaphore 更适合小团队的轻量管理：
+
+```
+┌─────────────────────────────────────────────────────┐
+│              Semaphore Web UI                        │
+│                                                      │
+│  📁 项目: Firecracker 管理                           │
+│  ├── 🔑 密钥: SSH-Key (宿主机连接)                   │
+│  ├── 📋 Inventory: fc-hosts                          │
+│  ├── 📦 仓库: git@repo:ansible-firecracker.git      │
+│  │                                                   │
+│  ├── 📝 任务模板:                                    │
+│  │   ├── [FC-Setup]        安装宿主机环境             │
+│  │   ├── [FC-Create-VM]    创建 microVM              │
+│  │   ├── [FC-Batch]        批量创建                   │
+│  │   ├── [FC-Snapshot]     快照管理                   │
+│  │   ├── [FC-Destroy]      销毁 VM                    │
+│  │   └── [FC-Status]       查看运行状态               │
+│  │                                                   │
+│  ├── ⏰ 定时任务:                                    │
+│  │   ├── 每日 02:00 — 清理过期 VM                    │
+│  │   └── 每周日 03:00 — 全量快照                     │
+│  │                                                   │
+│  └── 📜 执行历史: 所有操作的完整日志                  │
+└─────────────────────────────────────────────────────┘
+```
+
+Semaphore 项目配置步骤：
+
+```bash
+# 1. 在 Semaphore 中创建项目 "Firecracker 管理"
+
+# 2. 添加 Inventory
+#    名称: fc-hosts
+#    类型: Static
+#    内容: 直接引用仓库中的 inventory/hosts.ini
+
+# 3. 添加密钥
+#    名称: FC-SSH-Key
+#    类型: SSH Private Key
+#    内容: ~/.ssh/id_firecracker
+
+# 4. 添加 Git 仓库
+#    URL: git@your-repo:ansible-firecracker.git
+#    分支: main
+
+# 5. 创建任务模板
+#    模板名: FC-Create-VM
+#    Playbook: playbooks/firecracker-vm-manage.yml
+#    参数: vm_id=my-app vcpu=2 mem=512
+```
+
+#### 方案三：Flint + 自定义 Web Dashboard
+
+针对需要更丰富 UI 交互的场景，使用 Flask/FastAPI 构建自定义管理面板：
+
+```yaml
+# playbooks/firecracker-dashboard.yml
+- name: 部署 Firecracker 管理 Dashboard
+  hosts: fc_dashboard
+  become: yes
+  vars:
+    dashboard_dir: /opt/fc-dashboard
+    dashboard_port: 8080
+
+  tasks:
+    - name: 安装 Python 依赖
+      ansible.builtin.pip:
+        name:
+          - fastapi
+          - uvicorn
+          - jinja2
+          - httpx
+        virtualenv: "{{ dashboard_dir }}/venv"
+
+    - name: 部署 Dashboard 代码
+      ansible.builtin.git:
+        repo: "https://github.com/your-org/fc-dashboard.git"
+        dest: "{{ dashboard_dir }}/app"
+        version: main
+
+    - name: 创建 systemd 服务
+      ansible.builtin.template:
+        src: fc-dashboard.service.j2
+        dest: /etc/systemd/system/fc-dashboard.service
+        mode: '0644'
+      notify: Restart Dashboard
+
+    - name: 启动 Dashboard
+      ansible.builtin.service:
+        name: fc-dashboard
+        state: started
+        enabled: yes
+
+  handlers:
+    - name: Restart Dashboard
+      ansible.builtin.service:
+        name: fc-dashboard
+        state: restarted
+```
+
+Dashboard 核心功能模块参考：
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│              Firecracker 管理 Dashboard                       │
+│                                                               │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐   │
+│  │  宿主机概览    │  │  VM 列表     │  │  快照管理        │   │
+│  │              │  │              │  │                  │   │
+│  │ • CPU 使用率  │  │ • 运行状态   │  │ • 创建快照       │   │
+│  │ • 内存占用    │  │ • vCPU/内存  │  │ • 恢复快照       │   │
+│  │ • VM 数量    │  │ • IP 地址    │  │ • 批量克隆       │   │
+│  │ • KVM 状态   │  │ • 运行时长   │  │ • 定时快照策略   │   │
+│  └──────────────┘  └──────────────┘  └──────────────────┘   │
+│                                                               │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐   │
+│  │  创建 VM     │  │  控制台      │  │  监控指标        │   │
+│  │              │  │              │  │                  │   │
+│  │ • 表单创建   │  │ • 串口输出   │  │ • CPU/内存图表   │   │
+│  │ • YAML 导入  │  │ • 实时日志   │  │ • 网络吞吐       │   │
+│  │ • 模板选择   │  │ • 历史日志   │  │ • 磁盘 I/O      │   │
+│  └──────────────┘  └──────────────┘  └──────────────────┘   │
+│                                                               │
+│  后端: FastAPI → 调用 Ansible Playbook / Firecracker API     │
+│  前端: Vue.js / React                                         │
+└──────────────────────────────────────────────────────────────┘
+```
+
+### 17.8 监控集成 Playbook
+
+将 Firecracker 指标接入 Prometheus + Grafana：
+
+```yaml
+# playbooks/firecracker-monitoring.yml
+- name: 部署 Firecracker 监控
+  hosts: fc_hosts
+  become: yes
+  vars:
+    prometheus_config: /etc/prometheus/prometheus.yml
+    metrics_script: /usr/local/bin/fc-metrics-collector.sh
+
+  tasks:
+    # 指标采集脚本（定时调用 Firecracker Metrics API）
+    - name: 部署指标采集脚本
+      ansible.builtin.copy:
+        dest: "{{ metrics_script }}"
+        mode: '0755'
+        content: |
+          #!/bin/bash
+          # 采集所有运行中 microVM 的指标并暴露给 Prometheus
+          METRICS_DIR="/var/lib/fc-metrics"
+          mkdir -p "$METRICS_DIR"
+          echo "# HELP fc_uptime_ms microVM uptime in milliseconds" > "$METRICS_DIR/metrics.prom"
+          echo "# TYPE fc_uptime gauge" >> "$METRICS_DIR/metrics.prom"
+
+          for socket in /tmp/fc-*.socket; do
+            [ -S "$socket" ] || continue
+            VM_ID=$(basename "$socket" .socket | sed 's/fc-//')
+            METRICS=$(curl -s --unix-socket "$socket" 'http://localhost/metrics' 2>/dev/null)
+            if [ -n "$METRICS" ]; then
+              UPTIME=$(echo "$METRICS" | jq -r '.vmm.uptime_ns // 0')
+              UPTIME_MS=$(( UPTIME / 1000000 ))
+              echo "fc_uptime{vm=\"$VM_ID\"} $UPTIME_MS" >> "$METRICS_DIR/metrics.prom"
+            fi
+          done
+
+    - name: 配置定时采集（Cron）
+      ansible.builtin.cron:
+        name: "Firecracker metrics collection"
+        minute: "*/1"
+        job: "{{ metrics_script }}"
+
+    - name: 配置 Prometheus 采集目标
+      ansible.builtin.blockinfile:
+        path: "{{ prometheus_config }}"
+        marker: "# {mark} ANSIBLE MANAGED - Firecracker"
+        block: |
+          - job_name: 'firecracker'
+            scrape_interval: 15s
+            static_configs:
+              - targets:
+                {% for host in groups['fc_hosts'] %}
+                - '{{ hostvars[host].ansible_host }}:9090'
+                {% endfor %}
+                labels:
+                  group: 'firecracker'
+      when: inventory_hostname == groups['fc_hosts'][0]
+```
+
+### 17.9 完整部署工作流
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│              Firecracker + Ansible 完整工作流                  │
+│                                                              │
+│  Step 1: 环境准备                                            │
+│  ┌────────────────────────────────────────────────────────┐ │
+│  │  ansible-playbook playbooks/firecracker-setup.yml      │ │
+│  │  → 安装 Firecracker + Jailer                           │ │
+│  │  → 创建用户、目录、权限                                  │ │
+│  └────────────────────────────────────────────────────────┘ │
+│                         ↓                                    │
+│  Step 2: 镜像准备                                            │
+│  ┌────────────────────────────────────────────────────────┐ │
+│  │  ansible-playbook playbooks/firecracker-images.yml     │ │
+│  │  → 下载 Guest 内核                                     │ │
+│  │  → 构建 rootfs 镜像                                    │ │
+│  └────────────────────────────────────────────────────────┘ │
+│                         ↓                                    │
+│  Step 3: 监控部署                                            │
+│  ┌────────────────────────────────────────────────────────┐ │
+│  │  ansible-playbook playbooks/firecracker-monitoring.yml │ │
+│  │  → 部署指标采集脚本                                     │ │
+│  │  → 配置 Prometheus + Grafana                           │ │
+│  └────────────────────────────────────────────────────────┘ │
+│                         ↓                                    │
+│  Step 4: 创建 VM（两种方式）                                  │
+│  ┌───────────────────┐  ┌────────────────────────────┐     │
+│  │ CLI 方式          │  │ Web UI 方式               │     │
+│  │ ansible-playbook  │  │ AWX/Semaphore 一键触发     │     │
+│  │ firecracker-      │  │ → 选择模板                │     │
+│  │ vm-manage.yml     │  │ → 填写参数                │     │
+│  │ -e "vm_id=xxx"    │  │ → 点击执行                │     │
+│  └───────────────────┘  └────────────────────────────┘     │
+│                         ↓                                    │
+│  Step 5: 日常运维（通过 Web UI 或 CLI）                       │
+│  ┌────────────────────────────────────────────────────────┐ │
+│  │  • 查看运行状态         • 创建/恢复快照                  │ │
+│  │  • 批量扩容             • 监控告警                      │ │
+│  │  • 销毁 VM             • 日志审计                      │ │
+│  └────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 17.10 Jailer 生产部署 Playbook
+
+生产环境必须使用 Jailer 安全沙箱启动 microVM：
+
+```yaml
+# playbooks/firecracker-jailer.yml
+- name: 使用 Jailer 安全启动 microVM
+  hosts: fc_hosts
+  become: yes
+  vars:
+    vm_id: "prod-app-001"
+    jailer_chroot_base: /srv/jailer
+    jailer_uid: 1234
+    jailer_gid: 1234
+    fc_images_dir: /opt/firecracker/images
+    vm_vcpu: 2
+    vm_mem_mib: 512
+    tap_device: "tap-{{ vm_id }}"
+    guest_mac: "AA:FC:00:00:00:01"
+
+  tasks:
+    - name: 准备 Jailer chroot 环境
+      ansible.builtin.file:
+        path: "{{ jailer_chroot_base }}/firecracker/{{ vm_id }}/root"
+        state: directory
+        mode: '0755'
+
+    - name: 使用 Jailer 启动 Firecracker
+      ansible.builtin.shell: |
+        jailer \
+          --id {{ vm_id }} \
+          --exec-file /usr/local/bin/firecracker \
+          --uid {{ jailer_uid }} \
+          --gid {{ jailer_gid }} \
+          --chroot-base-dir {{ jailer_chroot_base }} \
+          --cgroup-version 2 \
+          --resource-limit "no-file=1024" \
+          -- /run/firecracker.socket
+      async: 86400
+      poll: 0
+      register: jailer_job
+
+    - name: 等待 Jailer Socket 就绪
+      ansible.builtin.wait_for:
+        path: "{{ jailer_chroot_base }}/firecracker/{{ vm_id }}/root/run/firecracker.socket"
+        timeout: 10
+
+    - name: 配置 microVM（通过 Jailer chroot 内的 Socket）
+      ansible.builtin.uri:
+        url: "http://localhost{{ item.path }}"
+        unix_socket: "{{ jailer_chroot_base }}/firecracker/{{ vm_id }}/root/run/firecracker.socket"
+        method: PUT
+        body_format: json
+        body: "{{ item.body }}"
+        status_code: 204
+      loop:
+        - path: "/boot-source"
+          body:
+            kernel_image_path: "/opt/firecracker/images/vmlinux-5.10"
+            boot_args: "console=ttyS0 reboot=k panic=1 pci=off"
+        - path: "/drives/rootfs"
+          body:
+            drive_id: rootfs
+            path_on_host: "/opt/firecracker/images/rootfs.ext4"
+            is_root_device: true
+            is_read_only: true
+        - path: "/network-interfaces/eth0"
+          body:
+            iface_id: eth0
+            host_dev_name: "{{ tap_device }}"
+            guest_mac: "{{ guest_mac }}"
+        - path: "/machine-config"
+          body:
+            vcpu_count: "{{ vm_vcpu }}"
+            mem_size_mib: "{{ vm_mem_mib }}"
+
+    - name: 启动 microVM
+      ansible.builtin.uri:
+        url: "http://localhost/actions"
+        unix_socket: "{{ jailer_chroot_base }}/firecracker/{{ vm_id }}/root/run/firecracker.socket"
+        method: PUT
+        body_format: json
+        body:
+          action_type: InstanceStart
+        status_code: 204
+
+    - name: 显示部署信息
+      ansible.builtin.debug:
+        msg: |
+          🔒 microVM '{{ vm_id }}' 已通过 Jailer 安全启动
+          chroot: {{ jailer_chroot_base }}/firecracker/{{ vm_id }}/root
+          uid/gid: {{ jailer_uid }}/{{ jailer_gid }}
+          vCPU: {{ vm_vcpu }} | 内存: {{ vm_mem_mib }}MB
+```
+
+### 17.11 常见问题与排查
+
+| 问题                     | 原因                | 解决方案                                        |
+| ---------------------- | ----------------- | ------------------------------------------- |
+| `uri` 模块 Socket 连接失败   | Socket 路径错误或权限不足  | 检查 `unix_socket` 参数和文件权限                    |
+| `Cannot open /dev/kvm` | 用户不在 kvm 组        | `usermod -aG kvm $USER`                     |
+| 批量创建 TAP 冲突            | IP 地址重复           | 使用 Jinja2 计算 IP（`{{ base_ip + item_idx }}`） |
+| 快照恢复版本不匹配              | Firecracker 版本不一致 | 确保 `version` 字段与安装版本一致                      |
+| Jailer chroot 权限问题     | 文件未正确绑定挂载         | 检查 Jailer 日志，确保资源文件在 chroot 内可见             |
+| VM 启动后无网络              | TAP + NAT 未配置     | 先运行网络配置 Task，确保 iptables 规则生效               |
+| Ansible `uri` 超时       | Firecracker 进程未启动 | 先用 `wait_for` 确认 Socket 就绪                  |
+
+### 17.12 Web UI 方案选择建议
+
+```
+你的 Firecracker 管理场景？
+│
+├── 个人 / 学习 / 少量 VM（< 10 台）
+│   └── ✅ Ansible CLI 直接管理（无需 Web UI）
+│
+├── 小团队 (3-10 人) + 定期创建/销毁 VM
+│   └── ✅ Semaphore（5 分钟部署，够用）
+│
+├── 中大型团队 + 生产环境 + 多租户
+│   └── ✅ AWX（RBAC 权限、审计日志、工作流）
+│
+├── 需要自定义 Dashboard 和丰富交互
+│   └── ✅ FastAPI + Vue/React 自建（完全定制）
+│
+└── 已有 Kubernetes 集群
+    └── ✅ Flintlock + Liquid Metal（云原生编排）
+        详见 [[Firecracker 生态与配合项目指南]]
+```

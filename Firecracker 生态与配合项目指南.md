@@ -176,12 +176,12 @@ rust-vmm 组件关系图
 
 ### 2.2 核心组件
 
-| 组件 | 职责 |
-|---|---|
-| **runtime-shim** | containerd Runtime v2 shim，替代默认的 runc shim |
-| **firecracker-control** | 控制服务，管理 microVM 生命周期 |
-| **agent** | 运行在 microVM 内部的轻量代理，管理容器 |
-| **dm-verity 根文件系统** | 为 microVM rootfs 提供完整性校验 |
+| 组件                      | 职责                                         |
+| ----------------------- | ------------------------------------------ |
+| **runtime-shim**        | containerd Runtime v2 shim，替代默认的 runc shim |
+| **firecracker-control** | 控制服务，管理 microVM 生命周期                       |
+| **agent**               | 运行在 microVM 内部的轻量代理，管理容器                   |
+| **dm-verity 根文件系统**     | 为 microVM rootfs 提供完整性校验                   |
 
 ### 2.3 配合场景
 
@@ -278,12 +278,12 @@ func main() {
 
 ### 3.2 适用场景
 
-| 场景 | 说明 |
-|---|---|
-| **编排平台** | 类似 Flintlock，自己构建 microVM 编排系统 |
-| **Serverless 平台** | 自建 FaaS 平台，动态管理 VM 生命周期 |
-| **CI/CD 沙箱** | Go 编写的 CI 系统中集成沙箱执行 |
-| **测试框架** | 在集成测试中创建隔离的测试环境 |
+| 场景                | 说明                             |
+| ----------------- | ------------------------------ |
+| **编排平台**          | 类似 Flintlock，自己构建 microVM 编排系统 |
+| **Serverless 平台** | 自建 FaaS 平台，动态管理 VM 生命周期        |
+| **CI/CD 沙箱**      | Go 编写的 CI 系统中集成沙箱执行            |
+| **测试框架**          | 在集成测试中创建隔离的测试环境                |
 
 ---
 
@@ -391,13 +391,13 @@ enable_debug = false
 > [!abstract] 项目定位
 > **编排层** — 在裸金属服务器上通过 Kubernetes 原生方式编排 Firecracker microVM。
 
-| 属性 | 详情 |
-|---|---|
-| **Flintlock GitHub** | https://github.com/liquidmetal-dev/flintlock |
-| **Liquid Metal** | https://github.com/weaveworks-liquidmetal/liquidmetal |
-| **许可证** | Apache 2.0 |
-| **语言** | Go |
-| **原创团队** | Weaveworks → Liquid Metal |
+| 属性                   | 详情                                                    |
+| -------------------- | ----------------------------------------------------- |
+| **Flintlock GitHub** | https://github.com/liquidmetal-dev/flintlock          |
+| **Liquid Metal**     | https://github.com/weaveworks-liquidmetal/liquidmetal |
+| **许可证**              | Apache 2.0                                            |
+| **语言**               | Go                                                    |
+| **原创团队**             | Weaveworks → Liquid Metal                             |
 
 ### 6.1 架构
 
@@ -482,13 +482,13 @@ spec:
 
 **Crosvm** 是 Google 开发的 Rust VMM，用于 Chrome OS 运行 Linux 应用（Termina VM）。与 Firecracker 的关系：
 
-| 维度 | Firecracker | Crosvm |
-|---|---|---|
-| **开发方** | AWS | Google |
-| **目标** | Serverless / 容器隔离 | Chrome OS / Linux 桌面 |
-| **设备模型** | 极简（3 种设备） | 较丰富（GPU、Wayland、音频） |
-| **共享组件** | rust-vmm | rust-vmm |
-| **许可证** | Apache 2.0 | BSD-3-Clause |
+| 维度       | Firecracker       | Crosvm               |
+| -------- | ----------------- | -------------------- |
+| **开发方**  | AWS               | Google               |
+| **目标**   | Serverless / 容器隔离 | Chrome OS / Linux 桌面 |
+| **设备模型** | 极简（3 种设备）         | 较丰富（GPU、Wayland、音频）  |
+| **共享组件** | rust-vmm          | rust-vmm             |
+| **许可证**  | Apache 2.0        | BSD-3-Clause         |
 
 ### 7.3 Cloud-Hypervisor — Intel VMM
 
