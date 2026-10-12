@@ -4,3 +4,8 @@
 .vscode
 Clippings
 scripts
+
+# AI agent tool state (per-machine, not for version control)
+.agents/
+.opencode/
+copilot/
